@@ -1,42 +1,67 @@
-# BOOKMATE 데이터 수정 가이드
+# BOOKMATE 데이터 수정 가이드 v3.7
 
-공모전 데모 데이터를 편하게 바꾸고 싶을 때는 **`data/bookmate-data.js`** 파일만 수정하면 됩니다.
+이 버전의 목표는 **로그인/관리자 개념을 복잡하게 보지 않고, 데이터만 쉽게 고치는 것**입니다.
 
-## 가장 자주 고치는 곳
+주로 수정할 파일은 하나입니다.
 
-### 1. 가계정
-`users` 배열을 수정합니다.
+```txt
+data/bookmate-data.js
+```
+
+## 핵심 구조
+
+### 1. `guestMode`
+첫 접속 때 보이는 게스트 상태입니다.
 
 ```js
-{
-  id: "moa01",              // 로그인 아이디
-  password: "1234",         // 비밀번호
-  nickname: "달빛독서가",    // 화면에 보이는 닉네임
-  library: "익산시립도서관", // 소속도서관
-  avatarId: 1,               // 모아 프로필 1~4
-  tastes: ["소설", "인문"]  // 관심 분야
+guestMode: {
+  recentBooks: [],
+  recentArchives: [],
+  joinedGatheringIds: [],
+  loungeBookmates: []
 }
 ```
 
-### 2. 처음 보이는 대표 계정
-`currentUser`를 수정합니다.
+게스트는 기본적으로 비워두는 것을 추천합니다.
 
-### 3. 독서모임
-`gatherings` 배열을 수정합니다.
+### 2. `accounts`
+가계정 목록입니다. 각 계정 안에서 **내서재, 아카이브, 북라운지**를 따로 수정합니다.
 
-### 4. 내서재
-`recentBooks` 배열을 수정합니다.
+```js
+{
+  id: "moa01",
+  password: "1234",
+  nickname: "달빛독서가",
 
-### 5. 아카이브
-`recentArchives` 배열을 수정합니다.
+  recentBooks: [ ... ],      // 이 계정의 내서재
+  recentArchives: [ ... ],   // 이 계정의 아카이브
+  joinedGatheringIds: [1, 2],// 이 계정이 가입한 독서모임 id
+  loungeBookmates: [ ... ]   // 이 계정의 북라운지 북메이트
+}
+```
 
-### 6. 북라운지 북메이트
-`loungeBookmates` 배열을 수정합니다.
+### 3. `gatherings`
+전체 독서모임 목록입니다.
 
-## 주의할 점
+계정별 가입 여부는 `gatherings` 안에 쓰지 않고, 각 계정의 `joinedGatheringIds`에서 관리합니다.
 
-- `id`는 중복되지 않게 써 주세요.
-- 따옴표 `""`를 지우면 오류가 날 수 있습니다.
-- 배열 안 항목은 `{ ... }` 형태로 추가합니다.
-- 수정 후 GitHub에 올리고 Netlify가 다시 배포되면 반영됩니다.
-- 이미 브라우저에 저장된 데이터가 남아 있으면 새 데이터가 안 보일 수 있습니다. 이때는 브라우저 localStorage를 초기화하거나 `/admin.html`에서 초기화하면 됩니다.
+```js
+joinedGatheringIds: [1, 2]
+leadingGatheringIds: [1]
+```
+
+이렇게 쓰면 `id: 1`, `id: 2` 독서모임에 가입한 것으로 표시됩니다.
+
+## 질문에 대한 답
+
+### 아카이브는 계정별로 수정 가능한가요?
+네. 각 계정 안의 `recentArchives`를 수정하면 됩니다.
+
+### 현재 로그인 사용자를 따로 수정해야 하나요?
+아니요. 첫 접속은 항상 `guestMode`로 시작합니다. 로그인 테스트를 할 때만 `accounts` 중 하나를 선택하면 됩니다.
+
+### 내서재도 계정별인가요?
+네. 각 계정 안의 `recentBooks`가 내서재입니다.
+
+### 북라운지도 계정별인가요?
+네. 각 계정 안의 `loungeBookmates`, `loungeProgress`가 북라운지 데이터입니다.

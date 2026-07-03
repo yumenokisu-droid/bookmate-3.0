@@ -3131,18 +3131,13 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
 
         function getManagedSeedUsers() {
             const fallbackUsers = [
-            { id: 'moa01', password: '1234', name: '김도윤', age: 29, gender: '남성', nickname: '달빛독서가', library: '익산시립도서관', libraryVerified: true, tastes: ['소설','에세이','인문'], readingType: '감성 탐험가', readingTypeIcon: '🌿', avatarId: 1, role: '대표 계정 · 따뜻한 감상글', readBooksCount: 68, gatheringCount: 3, chatMessagesCount: 1540 },
-            { id: 'moa02', password: '1234', name: '이서윤', age: 34, gender: '여성', nickname: '사유올빼미', library: '전북대표도서관', libraryVerified: true, tastes: ['철학','심리','인문'], readingType: '깊은 사색가', readingTypeIcon: '🧠', avatarId: 2, role: '긴 감상글 · 깊은 댓글', readBooksCount: 91, gatheringCount: 2, chatMessagesCount: 2120 },
-            { id: 'moa03', password: '1234', name: '박민준', age: 26, gender: '남성', nickname: '책읽는고양이', library: '소속도서관 없음', libraryVerified: true, tastes: ['판타지','SF','추리'], readingType: '상상 설계자', readingTypeIcon: '🚀', avatarId: 3, role: '신간 추천 · 장르 독서', readBooksCount: 52, gatheringCount: 1, chatMessagesCount: 820 },
-            { id: 'moa04', password: '1234', name: '최유진', age: 31, gender: '여성', nickname: '지혜의등대', library: '서울시립도서관', libraryVerified: true, tastes: ['사회','경제','자기계발'], readingType: '성장 전략가', readingTypeIcon: '💼', avatarId: 4, role: '질문글 · 토론 리더', readBooksCount: 74, gatheringCount: 4, chatMessagesCount: 1760 },
-            { id: 'moa05', password: '1234', name: '정현우', age: 42, gender: '남성', nickname: '초록책갈피', library: '국립도서관', libraryVerified: true, tastes: ['역사','인문','예술'], readingType: '인문 산책가', readingTypeIcon: '🏛', avatarId: 1, role: '독서모임 운영자', readBooksCount: 116, gatheringCount: 5, chatMessagesCount: 2410 },
-            { id: 'moa06', password: '1234', name: '김하은', age: 28, gender: '여성', nickname: '문장수집가', library: '익산시립도서관', libraryVerified: true, tastes: ['시','에세이','문학'], readingType: '문장 수집가', readingTypeIcon: '✍', avatarId: 2, role: '필사 · 문장 공유', readBooksCount: 63, gatheringCount: 2, chatMessagesCount: 1340 },
-            { id: 'moa07', password: '1234', name: '오지훈', age: 38, gender: '남성', nickname: '밤의독서가', library: '익산시립도서관', libraryVerified: true, tastes: ['역사','과학','논픽션'], readingType: '지식 연구자', readingTypeIcon: '🔬', avatarId: 4, role: '새벽 댓글 · 북라운지 고수', readBooksCount: 87, gatheringCount: 3, chatMessagesCount: 980 },
-            { id: 'moa08', password: '1234', name: '윤서진', age: 33, gender: '여성', nickname: '활자유목민', library: '전북대표도서관', libraryVerified: true, tastes: ['고전','여행','문학'], readingType: '호기심 여행자', readingTypeIcon: '🌍', avatarId: 3, role: '고전 산책 · 낯선 책 발견', readBooksCount: 59, gatheringCount: 2, chatMessagesCount: 1120 }
-        ];;
+            { id: 'moa01', password: '1234', name: '김도윤', age: 29, gender: '남성', nickname: '달빛독서가', library: '익산시립도서관', libraryVerified: true, tastes: ['소설','에세이','인문'], readingType: '인물의 심리와 관계를 따라 읽는 독자', readingTypeIcon: '📚', avatarId: 1, role: '따뜻한 감상글', readBooksCount: 68, gatheringCount: 3, chatMessagesCount: 1540 },
+            { id: 'moa02', password: '1234', name: '이서윤', age: 34, gender: '여성', nickname: '사유올빼미', library: '전북대표도서관', libraryVerified: true, tastes: ['철학','심리','인문'], readingType: '질문을 통해 생각을 확장하는 독자', readingTypeIcon: '🧠', avatarId: 2, role: '깊은 댓글 · 사유형 독자', readBooksCount: 91, gatheringCount: 2, chatMessagesCount: 2120 }
+        ];
             const dataset = getManagedDataset();
-            if (dataset && Array.isArray(dataset.users) && dataset.users.length) {
-                return dataset.users.map((user, index) => ({
+            const managedAccounts = dataset && (Array.isArray(dataset.accounts) ? dataset.accounts : (Array.isArray(dataset.users) ? dataset.users : []));
+            if (managedAccounts && managedAccounts.length) {
+                return managedAccounts.map((user, index) => ({
                     avatarType: 'moa',
                     avatarId: ((index % 4) + 1),
                     libraryVerified: true,
@@ -3151,7 +3146,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             }
             return fallbackUsers;
         }
-
         const DEFAULT_AUTH_USERS = getManagedSeedUsers();
 
 
@@ -3166,26 +3160,80 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             currentAIMode: state.currentAIMode || 'debate'
         }));
 
+
+        function deepClone(value, fallback) {
+            try {
+                if (value === undefined || value === null) return fallback;
+                return JSON.parse(JSON.stringify(value));
+            } catch (error) {
+                return fallback;
+            }
+        }
+
+        function getManagedAccounts() {
+            const dataset = getManagedDataset();
+            if (!dataset) return [];
+            if (Array.isArray(dataset.accounts)) return dataset.accounts;
+            if (Array.isArray(dataset.users)) return dataset.users;
+            return [];
+        }
+
+        function getManagedAccountById(id) {
+            if (!id) return null;
+            return getManagedAccounts().find(account => account && account.id === id) || null;
+        }
+
+        function getGuestModeData() {
+            const dataset = getManagedDataset();
+            return (dataset && dataset.guestMode && typeof dataset.guestMode === 'object') ? dataset.guestMode : {};
+        }
+
+        function applyGatheringMembership(baseGatherings, accountData) {
+            const joinedIds = new Set((accountData && Array.isArray(accountData.joinedGatheringIds)) ? accountData.joinedGatheringIds.map(Number) : []);
+            const leaderIds = new Set((accountData && Array.isArray(accountData.leadingGatheringIds)) ? accountData.leadingGatheringIds.map(Number) : []);
+            return deepClone(baseGatherings || [], []).map(g => ({
+                ...g,
+                joined: joinedIds.has(Number(g.id)),
+                isLeader: leaderIds.has(Number(g.id))
+            }));
+        }
+
+        function getAccountLoungeBookmates(accountData) {
+            const dataset = getManagedDataset();
+            if (accountData && Array.isArray(accountData.loungeBookmates)) return deepClone(accountData.loungeBookmates, []);
+            if (dataset && Array.isArray(dataset.loungeBookmates)) return deepClone(dataset.loungeBookmates, []);
+            if (typeof DEFAULT_BOOKMATES !== 'undefined') return DEFAULT_BOOKMATES.slice();
+            return [];
+        }
+
+        function getAccountLoungeProgress(accountData) {
+            if (accountData && accountData.loungeProgress && typeof accountData.loungeProgress === 'object') {
+                return { ...accountData.loungeProgress };
+            }
+            return null;
+        }
+
         function applyManagedDatasetToState() {
             const dataset = getManagedDataset();
             if (!dataset) return;
-            const mapping = [
-                ['recentBooks', 'recentBooks'],
-                ['recentArchives', 'recentArchives'],
+
+            // 공통 데이터만 기본값으로 반영합니다.
+            // 계정별 내서재/아카이브/북라운지는 applyActivityDataForAccount에서 따로 불러옵니다.
+            const publicMapping = [
                 ['gatherings', 'gatherings'],
                 ['notifications', 'notifications'],
                 ['socialPosts', 'socialPosts'],
                 ['aiChatHistory', 'aiChatHistory']
             ];
-            mapping.forEach(([key, stateKey]) => {
+            publicMapping.forEach(([key, stateKey]) => {
                 if (Array.isArray(dataset[key])) {
-                    state[stateKey] = JSON.parse(JSON.stringify(dataset[key]));
-                    BASE_ACCOUNT_DATA[stateKey] = JSON.parse(JSON.stringify(dataset[key]));
+                    state[stateKey] = deepClone(dataset[key], []);
+                    BASE_ACCOUNT_DATA[stateKey] = deepClone(dataset[key], []);
                 }
             });
-            if (dataset.currentUser && typeof dataset.currentUser === 'object') {
-                state.currentUser = { ...state.currentUser, ...dataset.currentUser };
-            }
+
+            // v3.7부터는 currentUser를 데이터 파일에서 직접 관리하지 않습니다.
+            // 첫 접속은 initAuthSystem()에서 항상 guest로 시작합니다.
             if (typeof dataset.currentAIBook === 'string') {
                 state.currentAIBook = dataset.currentAIBook;
                 BASE_ACCOUNT_DATA.currentAIBook = dataset.currentAIBook;
@@ -3204,12 +3252,29 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
         }
 
         function applyActivityDataForAccount(user) {
-            const isBlank = !user || user.isGuest || !isSeedAccount(user.id);
-            if (isBlank) {
+            const isGuest = !user || user.isGuest;
+            const accountData = isGuest ? getGuestModeData() : getManagedAccountById(user.id);
+
+            if (isGuest) {
+                state.recentBooks = deepClone(accountData.recentBooks, []);
+                state.recentArchives = deepClone(accountData.recentArchives, []);
+                state.notifications = deepClone(accountData.notifications || BASE_ACCOUNT_DATA.notifications, []);
+                state.socialPosts = deepClone(accountData.socialPosts || BASE_ACCOUNT_DATA.socialPosts, []);
+                state.aiChatHistory = deepClone(accountData.aiChatHistory, []);
+                state.aiChatTurns = 0;
+                state.currentAIBook = accountData.currentAIBook || '';
+                state.currentAIMode = 'debate';
+                state.gatherings = applyGatheringMembership(BASE_ACCOUNT_DATA.gatherings || [], accountData);
+                if (typeof loungeBookmates !== 'undefined') loungeBookmates = deepClone(accountData.loungeBookmates, []);
+                return;
+            }
+
+            const isKnownSeed = isSeedAccount(user.id);
+            if (!isKnownSeed && !accountData) {
                 state.recentBooks = [];
                 state.recentArchives = [];
                 state.notifications = [];
-                state.socialPosts = JSON.parse(JSON.stringify(BASE_ACCOUNT_DATA.socialPosts || []));
+                state.socialPosts = deepClone(BASE_ACCOUNT_DATA.socialPosts || [], []);
                 state.aiChatHistory = [];
                 state.aiChatTurns = 0;
                 state.currentAIBook = '';
@@ -3218,16 +3283,18 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
                 if (typeof loungeBookmates !== 'undefined') loungeBookmates = [];
                 return;
             }
-            state.recentBooks = JSON.parse(JSON.stringify(BASE_ACCOUNT_DATA.recentBooks || []));
-            state.recentArchives = JSON.parse(JSON.stringify(BASE_ACCOUNT_DATA.recentArchives || []));
-            state.gatherings = JSON.parse(JSON.stringify(BASE_ACCOUNT_DATA.gatherings || []));
-            state.notifications = JSON.parse(JSON.stringify(BASE_ACCOUNT_DATA.notifications || []));
-            state.socialPosts = JSON.parse(JSON.stringify(BASE_ACCOUNT_DATA.socialPosts || []));
-            state.aiChatHistory = [];
+
+            const data = accountData || {};
+            state.recentBooks = deepClone(data.recentBooks, deepClone(BASE_ACCOUNT_DATA.recentBooks || [], []));
+            state.recentArchives = deepClone(data.recentArchives, deepClone(BASE_ACCOUNT_DATA.recentArchives || [], []));
+            state.gatherings = applyGatheringMembership(BASE_ACCOUNT_DATA.gatherings || [], data);
+            state.notifications = deepClone(data.notifications || BASE_ACCOUNT_DATA.notifications, []);
+            state.socialPosts = deepClone(data.socialPosts || BASE_ACCOUNT_DATA.socialPosts, []);
+            state.aiChatHistory = deepClone(data.aiChatHistory, []);
             state.aiChatTurns = 0;
-            state.currentAIBook = BASE_ACCOUNT_DATA.currentAIBook || '';
-            state.currentAIMode = normalizeAIModeKey(BASE_ACCOUNT_DATA.currentAIMode || 'debate');
-            if (typeof loungeBookmates !== 'undefined') loungeBookmates = DEFAULT_BOOKMATES.slice();
+            state.currentAIBook = data.currentAIBook || BASE_ACCOUNT_DATA.currentAIBook || '';
+            state.currentAIMode = normalizeAIModeKey(data.currentAIMode || BASE_ACCOUNT_DATA.currentAIMode || 'debate');
+            if (typeof loungeBookmates !== 'undefined') loungeBookmates = getAccountLoungeBookmates(data);
         }
 
         function refreshAccountBoundViews() {
@@ -3703,6 +3770,20 @@ function getDefaultLoungeProgress() {
       };
     }
   }
+  const accountData = (typeof getManagedAccountById === 'function' && state.currentUser && !state.currentUser.isGuest) ? getManagedAccountById(state.currentUser.id) : (typeof getGuestModeData === 'function' ? getGuestModeData() : null);
+  const managedProgress = (typeof getAccountLoungeProgress === 'function') ? getAccountLoungeProgress(accountData) : null;
+  if (managedProgress) {
+    return {
+      completedBooks: Number(managedProgress.completedBooks || 0),
+      libraryVerified: Number(managedProgress.libraryVerified || 0),
+      aiDebates: Number(managedProgress.aiDebates || 0),
+      discussionPosts: Number(managedProgress.discussionPosts || 0),
+      bookmates: Number(managedProgress.bookmates || getActiveBookmates().length || 0),
+      joinedGatherings: Number(managedProgress.joinedGatherings || 0),
+      guestbookWrites: Number(managedProgress.guestbookWrites || 0),
+      liveMeetings: Number(managedProgress.liveMeetings || 0)
+    };
+  }
   if (state.currentUser && (state.currentUser.isGuest || !isSeedAccount(state.currentUser.id))) {
     return { completedBooks: 0, libraryVerified: 0, aiDebates: 0, discussionPosts: 0, bookmates: 0, joinedGatherings: 0, guestbookWrites: 0, liveMeetings: 0 };
   }
@@ -3725,6 +3806,19 @@ function loadLoungeBookmates() {
     loungeBookmates = DEFAULT_BOOKMATES.slice();
     return;
   }
+
+  // v3.7: 북라운지 북메이트도 계정별 데이터에서 가져옵니다.
+  if (typeof getManagedAccountById === 'function') {
+    const data = state.currentUser && state.currentUser.isGuest
+      ? (typeof getGuestModeData === 'function' ? getGuestModeData() : {})
+      : getManagedAccountById(state.currentUser && state.currentUser.id);
+    if (data && Array.isArray(data.loungeBookmates)) {
+      loungeBookmates = JSON.parse(JSON.stringify(data.loungeBookmates));
+      loungeBookmates.forEach((m, idx) => { if (!m.avatarId) m.avatarId = ((idx + 1) % 4) + 1; normalizeAvatarTarget(m); });
+      return;
+    }
+  }
+
   if (state.currentUser && (state.currentUser.isGuest || !isSeedAccount(state.currentUser.id))) {
     loungeBookmates = [];
     return;
