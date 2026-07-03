@@ -3109,7 +3109,28 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
         const AUTH_USERS_KEY = 'bookmate_v2_auth_users';
         const AUTH_SESSION_KEY = 'bookmate_v2_auth_session';
 
-        const DEFAULT_AUTH_USERS = [
+        function getManagedDataset() {
+            try {
+                const key = (window.BOOKMATE_ADMIN_CONFIG && window.BOOKMATE_ADMIN_CONFIG.datasetKey) || 'bookmate_admin_dataset_v1';
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') return parsed;
+                }
+                // 개발자가 직접 고치기 쉬운 기본 데모 데이터입니다.
+                // data/bookmate-data.js에서 계정, 독서모임, 내서재, 아카이브, 북라운지 정보를 수정하면 됩니다.
+                if (window.BOOKMATE_DATA && typeof window.BOOKMATE_DATA === 'object') {
+                    return window.BOOKMATE_DATA;
+                }
+                return null;
+            } catch (error) {
+                console.warn('[BOOKMATE DATA] 데모 데이터 로드 실패', error);
+                return null;
+            }
+        }
+
+        function getManagedSeedUsers() {
+            const fallbackUsers = [
             { id: 'moa01', password: '1234', name: '김도윤', age: 29, gender: '남성', nickname: '달빛독서가', library: '익산시립도서관', libraryVerified: true, tastes: ['소설','에세이','인문'], readingType: '감성 탐험가', readingTypeIcon: '🌿', avatarId: 1, role: '대표 계정 · 따뜻한 감상글', readBooksCount: 68, gatheringCount: 3, chatMessagesCount: 1540 },
             { id: 'moa02', password: '1234', name: '이서윤', age: 34, gender: '여성', nickname: '사유올빼미', library: '전북대표도서관', libraryVerified: true, tastes: ['철학','심리','인문'], readingType: '깊은 사색가', readingTypeIcon: '🧠', avatarId: 2, role: '긴 감상글 · 깊은 댓글', readBooksCount: 91, gatheringCount: 2, chatMessagesCount: 2120 },
             { id: 'moa03', password: '1234', name: '박민준', age: 26, gender: '남성', nickname: '책읽는고양이', library: '소속도서관 없음', libraryVerified: true, tastes: ['판타지','SF','추리'], readingType: '상상 설계자', readingTypeIcon: '🚀', avatarId: 3, role: '신간 추천 · 장르 독서', readBooksCount: 52, gatheringCount: 1, chatMessagesCount: 820 },
@@ -3118,7 +3139,20 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             { id: 'moa06', password: '1234', name: '김하은', age: 28, gender: '여성', nickname: '문장수집가', library: '익산시립도서관', libraryVerified: true, tastes: ['시','에세이','문학'], readingType: '문장 수집가', readingTypeIcon: '✍', avatarId: 2, role: '필사 · 문장 공유', readBooksCount: 63, gatheringCount: 2, chatMessagesCount: 1340 },
             { id: 'moa07', password: '1234', name: '오지훈', age: 38, gender: '남성', nickname: '밤의독서가', library: '익산시립도서관', libraryVerified: true, tastes: ['역사','과학','논픽션'], readingType: '지식 연구자', readingTypeIcon: '🔬', avatarId: 4, role: '새벽 댓글 · 북라운지 고수', readBooksCount: 87, gatheringCount: 3, chatMessagesCount: 980 },
             { id: 'moa08', password: '1234', name: '윤서진', age: 33, gender: '여성', nickname: '활자유목민', library: '전북대표도서관', libraryVerified: true, tastes: ['고전','여행','문학'], readingType: '호기심 여행자', readingTypeIcon: '🌍', avatarId: 3, role: '고전 산책 · 낯선 책 발견', readBooksCount: 59, gatheringCount: 2, chatMessagesCount: 1120 }
-        ];
+        ];;
+            const dataset = getManagedDataset();
+            if (dataset && Array.isArray(dataset.users) && dataset.users.length) {
+                return dataset.users.map((user, index) => ({
+                    avatarType: 'moa',
+                    avatarId: ((index % 4) + 1),
+                    libraryVerified: true,
+                    ...user
+                }));
+            }
+            return fallbackUsers;
+        }
+
+        const DEFAULT_AUTH_USERS = getManagedSeedUsers();
 
 
         const BASE_ACCOUNT_DATA = JSON.parse(JSON.stringify({
@@ -3131,6 +3165,34 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             currentAIBook: state.currentAIBook || '',
             currentAIMode: state.currentAIMode || 'debate'
         }));
+
+        function applyManagedDatasetToState() {
+            const dataset = getManagedDataset();
+            if (!dataset) return;
+            const mapping = [
+                ['recentBooks', 'recentBooks'],
+                ['recentArchives', 'recentArchives'],
+                ['gatherings', 'gatherings'],
+                ['notifications', 'notifications'],
+                ['socialPosts', 'socialPosts'],
+                ['aiChatHistory', 'aiChatHistory']
+            ];
+            mapping.forEach(([key, stateKey]) => {
+                if (Array.isArray(dataset[key])) {
+                    state[stateKey] = JSON.parse(JSON.stringify(dataset[key]));
+                    BASE_ACCOUNT_DATA[stateKey] = JSON.parse(JSON.stringify(dataset[key]));
+                }
+            });
+            if (dataset.currentUser && typeof dataset.currentUser === 'object') {
+                state.currentUser = { ...state.currentUser, ...dataset.currentUser };
+            }
+            if (typeof dataset.currentAIBook === 'string') {
+                state.currentAIBook = dataset.currentAIBook;
+                BASE_ACCOUNT_DATA.currentAIBook = dataset.currentAIBook;
+            }
+        }
+
+        applyManagedDatasetToState();
 
         function isSeedAccount(userOrId) {
             const id = typeof userOrId === 'string' ? userOrId : (userOrId && userOrId.id);
@@ -3622,7 +3684,7 @@ const DEFAULT_BOOKMATES = [
   { name: '초록책갈피', status: 'active', since: '2026.06.09', gathering: '에세이 클럽', avatarType: 'moa', avatarId: 2 },
   { name: '문장산책자', status: 'active', since: '2026.06.14', gathering: 'SF 북토크', avatarType: 'moa', avatarId: 1 }
 ];
-let loungeBookmates = [];
+let loungeBookmates = (getManagedDataset() && Array.isArray(getManagedDataset().loungeBookmates)) ? JSON.parse(JSON.stringify(getManagedDataset().loungeBookmates)) : [];
 
 function getDefaultLoungeProgress() {
   if (window.bookmateVisitedLoungeAuthor && typeof findAccountByNickname === 'function') {

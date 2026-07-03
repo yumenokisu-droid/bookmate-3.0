@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOOKMATE 운영 데이터 관리</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { brand: { navy:'#1B2A47', sage:'#5F8575', ivory:'#FAF6F0', ivoryDark:'#F3EDE2' } } } } };
+  </script>
+  <script src="data/bookmate-data.js"></script>
+  <script src="data/bookmate-admin-data.js"></script>
+  <script src="js/state.js"></script>
+</head>
+<body class="bg-brand-ivory text-brand-navy min-h-screen">
+  <main class="max-w-6xl mx-auto px-5 py-8 space-y-6">
+    <section class="bg-white border border-brand-ivoryDark rounded-[2rem] p-6 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold text-brand-sage tracking-[0.2em]">BOOKMATE ADMIN</p>
+          <h1 class="text-3xl font-black mt-2">운영 데이터 관리</h1>
+          <p class="text-sm text-gray-600 mt-2 leading-relaxed">가계정, 독서모임, 내서재, 아카이브, 북라운지를 JSON 한 파일로 관리합니다. 공모전 데모용 관리자 화면입니다.</p>
+        </div>
+        <a href="index.html" class="inline-flex justify-center px-4 py-2.5 rounded-xl bg-brand-navy text-white text-sm font-bold">BOOKMATE로 돌아가기</a>
+      </div>
+    </section>
+
+    <section class="grid lg:grid-cols-[1fr_340px] gap-6">
+      <div class="bg-white border border-brand-ivoryDark rounded-[2rem] overflow-hidden shadow-sm">
+        <div class="p-5 border-b border-brand-ivoryDark bg-brand-ivory/60 flex flex-wrap gap-2 justify-between items-center">
+          <div>
+            <h2 class="font-black text-lg">운영 데이터 JSON</h2>
+            <p class="text-xs text-gray-500 mt-1">수정 후 “브라우저에 적용”을 누르면 BOOKMATE 화면에 반영됩니다.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="loadTemplate()" class="px-3 py-2 rounded-xl bg-white border border-brand-ivoryDark text-xs font-bold">기본 템플릿</button>
+            <button onclick="loadSaved()" class="px-3 py-2 rounded-xl bg-white border border-brand-ivoryDark text-xs font-bold">저장본 불러오기</button>
+            <button onclick="downloadJson()" class="px-3 py-2 rounded-xl bg-brand-sage text-white text-xs font-bold">JSON 다운로드</button>
+          </div>
+        </div>
+        <div class="p-5">
+          <textarea id="json-editor" spellcheck="false" class="w-full min-h-[620px] font-mono text-xs leading-relaxed p-4 rounded-2xl border border-brand-ivoryDark outline-none focus:ring-2 focus:ring-brand-sage/20 bg-[#fffdf8]"></textarea>
+          <div class="flex flex-wrap gap-2 mt-4">
+            <button onclick="applyData()" class="px-5 py-3 rounded-xl bg-brand-navy text-white text-sm font-bold">브라우저에 적용</button>
+            <label class="px-5 py-3 rounded-xl bg-white border border-brand-ivoryDark text-sm font-bold cursor-pointer">
+              JSON 업로드
+              <input type="file" accept="application/json,.json" class="hidden" onchange="uploadJson(event)">
+            </label>
+            <button onclick="clearData()" class="px-5 py-3 rounded-xl bg-red-50 text-red-600 border border-red-100 text-sm font-bold">운영 데이터 초기화</button>
+          </div>
+          <p id="status" class="text-xs text-gray-500 mt-3"></p>
+        </div>
+      </div>
+
+      <aside class="space-y-4">
+        <div class="bg-white border border-brand-ivoryDark rounded-[1.5rem] p-5 shadow-sm">
+          <h3 class="font-black">수정하는 곳</h3>
+          <div class="mt-3 space-y-3 text-xs text-gray-600 leading-relaxed">
+            <p><b class="text-brand-navy">users</b> : 가계정, 닉네임, 비밀번호, 프로필, 소속도서관</p>
+            <p><b class="text-brand-navy">gatherings</b> : 독서모임 목록, 참여 여부, 정원, 일정</p>
+            <p><b class="text-brand-navy">recentBooks</b> : 내서재 완독/기록 카드</p>
+            <p><b class="text-brand-navy">recentArchives</b> : 내 아카이브에 보이는 기록</p>
+            <p><b class="text-brand-navy">loungeBookmates</b> : 북라운지에 보이는 북메이트</p>
+          </div>
+        </div>
+        <div class="bg-white border border-brand-ivoryDark rounded-[1.5rem] p-5 shadow-sm">
+          <h3 class="font-black">주의</h3>
+          <p class="text-xs text-gray-600 leading-relaxed mt-3">이 관리자 페이지는 데모용입니다. GitHub 파일 자체를 서버에서 직접 수정하지 않고, 현재 브라우저 저장소에 운영 데이터를 적용합니다. 적용 후 JSON을 다운로드해서 보관하면 다음 버전에도 다시 업로드할 수 있습니다.</p>
+        </div>
+        <div class="bg-brand-navy text-white rounded-[1.5rem] p-5 shadow-sm">
+          <h3 class="font-black">빠른 사용법</h3>
+          <ol class="text-xs leading-relaxed mt-3 space-y-2 list-decimal list-inside text-white/80">
+            <li>기본 템플릿을 누릅니다.</li>
+            <li>닉네임, 모임, 아카이브를 수정합니다.</li>
+            <li>브라우저에 적용을 누릅니다.</li>
+            <li>BOOKMATE로 돌아가 확인합니다.</li>
+          </ol>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+<script>
+const DATASET_KEY = (window.BOOKMATE_ADMIN_CONFIG && window.BOOKMATE_ADMIN_CONFIG.datasetKey) || 'bookmate_admin_dataset_v1';
+const AUTH_USERS_KEY = (window.BOOKMATE_ADMIN_CONFIG && window.BOOKMATE_ADMIN_CONFIG.authUsersKey) || 'bookmate_v2_auth_users';
+const AUTH_SESSION_KEY = (window.BOOKMATE_ADMIN_CONFIG && window.BOOKMATE_ADMIN_CONFIG.authSessionKey) || 'bookmate_v2_auth_session';
+
+const defaultUsers = [
+  { id:'moa01', password:'1234', name:'김도윤', age:29, gender:'남성', nickname:'달빛독서가', library:'익산시립도서관', libraryVerified:true, tastes:['소설','에세이','인문'], readingType:'대화 기반 독서가', readingTypeIcon:'📚', avatarType:'moa', avatarId:1, role:'대표 계정', readBooksCount:68, gatheringCount:3, chatMessagesCount:1540, missions:{firstBook:true,firstAI:true,firstReview:true,firstBookmate:true,firstGathering:true}, achievements:['첫 완독','AI 대화','첫 감상글'], loungeRewards:['책장','액자','화분','다과세트'] },
+  { id:'moa02', password:'1234', name:'이서윤', age:34, gender:'여성', nickname:'사유올빼미', library:'전북대표도서관', libraryVerified:true, tastes:['철학','심리','인문'], readingType:'질문 확장형 독서가', readingTypeIcon:'🧠', avatarType:'moa', avatarId:2, role:'깊은 댓글', readBooksCount:91, gatheringCount:2, chatMessagesCount:2120 },
+  { id:'moa03', password:'1234', name:'박민준', age:26, gender:'남성', nickname:'책읽는고양이', library:'소속도서관 없음', libraryVerified:true, tastes:['판타지','SF','추리'], readingType:'세계관 탐험형 독서가', readingTypeIcon:'🚀', avatarType:'moa', avatarId:3, role:'장르 독서', readBooksCount:52, gatheringCount:1, chatMessagesCount:820 },
+  { id:'moa04', password:'1234', name:'최유진', age:31, gender:'여성', nickname:'지혜의등대', library:'서울시립도서관', libraryVerified:true, tastes:['사회','경제','자기계발'], readingType:'현실 연결형 독서가', readingTypeIcon:'💼', avatarType:'moa', avatarId:4, role:'토론 리더', readBooksCount:74, gatheringCount:4, chatMessagesCount:1760 }
+];
+
+function buildTemplate(){
+  const currentState = typeof state !== 'undefined' ? state : {};
+  return window.BOOKMATE_DATA ? JSON.parse(JSON.stringify(window.BOOKMATE_DATA)) : {
+    users: defaultUsers,
+    currentUser: defaultUsers[0],
+    gatherings: currentState.gatherings || [],
+    recentBooks: currentState.recentBooks || [],
+    recentArchives: currentState.recentArchives || [],
+    notifications: currentState.notifications || [],
+    socialPosts: currentState.socialPosts || [],
+    loungeBookmates: [
+      { name:'사유올빼미', since:'2026.04.12부터 북메이트', gathering:'데미안 자아 탐구 모임', avatarType:'moa', avatarId:2 },
+      { name:'지혜의등대', since:'2026.05.03부터 북메이트', gathering:'사피엔스 토론 모임', avatarType:'moa', avatarId:4 },
+      { name:'문장수집가', since:'2026.06.01부터 북메이트', gathering:'문장 필사 모임', avatarType:'moa', avatarId:2 }
+    ]
+  };
+}
+function pretty(obj){ return JSON.stringify(obj, null, 2); }
+function setStatus(msg, ok=true){ const el=document.getElementById('status'); el.textContent=msg; el.className=`text-xs mt-3 ${ok?'text-brand-sage':'text-red-600'}`; }
+function loadTemplate(){ document.getElementById('json-editor').value = pretty(buildTemplate()); setStatus('기본 템플릿을 불러왔습니다.'); }
+function loadSaved(){ const raw=localStorage.getItem(DATASET_KEY); document.getElementById('json-editor').value = raw ? pretty(JSON.parse(raw)) : pretty(buildTemplate()); setStatus(raw?'저장된 운영 데이터를 불러왔습니다.':'저장본이 없어 기본 템플릿을 불러왔습니다.'); }
+function validateData(data){
+  if(!data || typeof data !== 'object') throw new Error('JSON 객체 형식이어야 합니다.');
+  if(!Array.isArray(data.users) || !data.users.length) throw new Error('users 배열이 필요합니다.');
+  data.users.forEach((u,i)=>{ if(!u.id || !u.password || !u.nickname) throw new Error(`users[${i}]에 id, password, nickname이 필요합니다.`); });
+  ['gatherings','recentBooks','recentArchives','loungeBookmates'].forEach(k=>{ if(data[k] && !Array.isArray(data[k])) throw new Error(`${k}는 배열이어야 합니다.`); });
+}
+function applyData(){
+  try {
+    const data = JSON.parse(document.getElementById('json-editor').value);
+    validateData(data);
+    localStorage.setItem(DATASET_KEY, JSON.stringify(data));
+    localStorage.removeItem(AUTH_USERS_KEY);
+    if(data.currentUser && data.currentUser.id) localStorage.setItem(AUTH_SESSION_KEY, data.currentUser.id);
+    setStatus('운영 데이터를 적용했습니다. BOOKMATE로 돌아가 새로고침하면 반영됩니다.');
+  } catch(e){ setStatus(e.message || 'JSON 형식을 확인해 주세요.', false); }
+}
+function clearData(){
+  if(!confirm('브라우저에 적용된 운영 데이터를 초기화할까요?')) return;
+  localStorage.removeItem(DATASET_KEY); localStorage.removeItem(AUTH_USERS_KEY); localStorage.removeItem(AUTH_SESSION_KEY);
+  setStatus('운영 데이터를 초기화했습니다.');
+}
+function downloadJson(){
+  try { const data=JSON.parse(document.getElementById('json-editor').value); validateData(data); const blob=new Blob([pretty(data)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bookmate-admin-data.json'; a.click(); URL.revokeObjectURL(a.href); setStatus('JSON 파일을 다운로드했습니다.'); } catch(e){ setStatus(e.message, false); }
+}
+function uploadJson(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{ try{ const data=JSON.parse(reader.result); validateData(data); document.getElementById('json-editor').value=pretty(data); setStatus('JSON 파일을 불러왔습니다. 적용 버튼을 누르면 반영됩니다.'); } catch(e){ setStatus(e.message, false); } };
+  reader.readAsText(file);
+}
+loadSaved();
+</script>
+</body>
+</html>
