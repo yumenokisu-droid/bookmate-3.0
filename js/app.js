@@ -8,18 +8,15 @@
 
         const AI_AVATAR_SRC = 'assets/ai-moa/ai-moa.png';
         const AI_ROLE_AVATARS = {
-            moa: 'assets/ai-moa/ai-moa.png',
-            debate: 'assets/ai-moa/ai-debate.png',
-            organize: 'assets/ai-moa/ai-organize.png',
-            coaching: 'assets/ai-moa/ai-coaching.png',
-            curator: 'assets/ai-moa/ai-curator.png'
+            moa: AI_AVATAR_SRC,
+            debate: AI_AVATAR_SRC,
+            organize: AI_AVATAR_SRC,
+            coaching: AI_AVATAR_SRC,
+            curator: AI_AVATAR_SRC
         };
 
         function getAIAvatarSrc(modeKey) {
-            const st = (typeof state !== 'undefined' && state) ? state : {};
-            if (st.aiSetupStage === 'askBook' || st.aiSetupStage === 'askRecentBook') return AI_ROLE_AVATARS.moa;
-            const key = normalizeAIModeKey(modeKey || st.currentAIMode || 'moa');
-            return AI_ROLE_AVATARS[key] || AI_ROLE_AVATARS.moa;
+            return AI_AVATAR_SRC;
         }
 
         function getAIAvatarHTML(sizeClass = 'w-7 h-7', extraClass = '', modeKey) {
@@ -1350,10 +1347,14 @@
             }
         };
 
-        const AI_MODE_ALIASES = { facilitator:'coaching', prepare:'coaching', recommend:'curator', debate:'debate', organize:'organize', coaching:'coaching', curator:'curator' };
+        AI_MODES.moa = {
+            icon:'📚', avatar: AI_AVATAR_SRC, title:'AI 독서파트너 모아', desc:'모드 선택 없이 책에 대한 질문, 감상, 토론, 정리, 추천을 자연스럽게 이어갑니다.', placeholder:'책 제목이나 궁금한 점을 편하게 적어보세요.', badge:'독서파트너',
+            prompt:`너는 BOOKMATE의 AI 독서파트너 '모아'이다. 사용자와 함께 책을 읽고 생각을 나누는 독서 친구로 대화한다. 사용자는 모드를 선택하지 않으며, 너는 필요에 따라 설명, 토론, 정리, 글쓰기 코칭, 독서모임 준비, 추천 큐레이션을 자연스럽게 오간다. 말투는 도서관 사서처럼 차분하고 따뜻하게 한다. 스포일러가 클 수 있는 내용은 먼저 확인하고, 모르는 책은 추측하지 않는다.`
+        };
+        const AI_MODE_ALIASES = { facilitator:'moa', prepare:'moa', recommend:'moa', debate:'moa', organize:'moa', coaching:'moa', curator:'moa', moa:'moa' };
         function escapeHTML(value) { return String(value || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-        function normalizeAIModeKey(modeKey) { return AI_MODE_ALIASES[modeKey] || (AI_MODES[modeKey] ? modeKey : 'debate'); }
-        function getAIMode() { const key = normalizeAIModeKey(state.currentAIMode || 'debate'); return AI_MODES[key] || AI_MODES.debate; }
+        function normalizeAIModeKey(modeKey) { return 'moa'; }
+        function getAIMode() { return AI_MODES.moa; }
         function loadAIChats() { try { return JSON.parse(localStorage.getItem(AI_CHAT_STORAGE_KEY) || '[]'); } catch(e) { return []; } }
         function saveAIChats(list) { localStorage.setItem(AI_CHAT_STORAGE_KEY, JSON.stringify(list || [])); renderAIHistoryList(); }
 
@@ -1367,27 +1368,13 @@
         }
 
         function setAIMode(modeKey) {
-            const prev = normalizeAIModeKey(state.currentAIMode || 'debate');
-            state.currentAIMode = normalizeAIModeKey(modeKey);
+            state.currentAIMode = 'moa';
             renderAIModeSelector();
             renderAIBookAnalysisCard(state.currentAIBook);
-            const mode = getAIMode();
-            const headerBookEl = document.getElementById('ai-chat-header-book');
-            if (headerBookEl) headerBookEl.innerText = `${state.currentAIBook ? `『${state.currentAIBook}』` : 'AI 독서 파트너'}`;
-            showToast(`${mode.title}로 전환했습니다.`);
-            if (state.aiSetupStage === 'askMode') {
-                setAISetupStage('chat');
-                const msg = getModeStartMessage(state.currentAIMode, state.currentAIBook);
-                state.aiChatHistory.push({ role: 'model', parts: [{ text: msg }] });
-                appendAIMessageToScroller('model', msg);
-                const scroller = document.getElementById('ai-chat-scroller');
-                if (scroller) scroller.scrollTop = scroller.scrollHeight;
-                return;
-            }
-            if (prev !== state.currentAIMode && state.aiChatHistory && state.aiChatHistory.length > 2) {
-                appendSystemAIEvent(`${mode.icon} ${mode.title}가 이어받았습니다. AI 모아가 역할을 전환했어요.`);
-            }
+            if (typeof renderAIInsightPanel === 'function') renderAIInsightPanel();
+            safeSetText('ai-chat-header-book', `${state.currentAIBook ? `『${state.currentAIBook}』` : 'AI 독서 파트너'}`);
         }
+
 
         function aiHistoryToPlainText(history, includeUserSeed=false) {
             return (history || []).filter((h,idx)=>includeUserSeed || idx>0).map(h => `${h.role==='model'?'AI 모아':'나'}: ${(h.parts?.[0]?.text||'').replace(/\n/g,' ')}`).join('\n');
@@ -1425,13 +1412,9 @@
         }
 
         function inferAIModeFromUserText(text) {
-            const t = String(text || '').toLowerCase();
-            if (/추천|비슷한 책|다음 책|읽을 책|책 골라|큐레이터|사서/.test(t)) return 'curator';
-            if (/모임|발제|논제|질문 만들|진행|퍼실리|토론 질문|아이스브레이킹|요약해줘.*모임/.test(t)) return 'coaching';
-            if (/정리|다듬|서평|독후감|문단|글로|한 문장|생각.*정리/.test(t)) return 'organize';
-            if (/토론|반론|다른 입장|어떻게 생각|동의|반대|장면.*기억|왜/.test(t)) return 'debate';
-            return normalizeAIModeKey(state.currentAIMode || 'debate');
+            return 'moa';
         }
+
 
         function setAIBookTitle(bookTitle, silent=false) {
             const title = String(bookTitle || '').trim();
@@ -1917,33 +1900,26 @@
             const intro = k?.analysis?.shortIntro ? `
 
 먼저 확인한 내용으로는, ${k.analysis.shortIntro}` : '';
-            const sourceLine = k?.source === 'bookmate-seed-card-v1' ? '\n대표도서 지식 카드가 준비되어 있어요.' : '\n검색한 책 정보를 바탕으로 임시 지식 카드를 만들었어요.';
-            return `${title} 정보를 확인하고 분석했어요.${sourceLine}${intro}
+            return `${title} 정보를 확인했어요.${intro}
 
-이제 어떤 방식으로 이야기해볼까요?
-모드를 모르시겠다면 위의 ?를 참고하시면 설명이 있어요.
-
-📖 독서토론 AI / 💭 생각정리 AI / 👥 독서모임 코칭 AI / 📚 큐레이터 AI`;
+이제 모드를 고르지 않아도 됩니다. 궁금한 장면, 떠오른 감상, 토론 질문, 서평 정리, 추천 요청까지 편하게 이어서 말씀해 주세요.`;
         }
+
 
         function getModeStartMessage(modeKey, bookTitle) {
-            const mode = AI_MODES[normalizeAIModeKey(modeKey)] || AI_MODES.debate;
             const name = getReaderName();
-            const bookLine = bookTitle ? `오늘은 『${bookTitle}』 책으로 해보겠습니다.` : `아직 책이 정해지지 않았으니, 대화하면서 함께 정해보겠습니다.`;
-            const detail = {
-                debate: `저는 같은 책을 읽은 또 다른 독자의 입장에서 함께 이야기합니다. 무조건 동의하기보다 때로는 다른 해석이나 반론도 제시하면서 토론을 이어갈게요.`,
-                organize: `흩어진 감상과 메모를 차분히 정리하고, 필요하면 문단·서평·독후감 형태로 다듬어드릴게요.`,
-                coaching: `독서모임 준비, 질문 구성, 진행 멘트, 토론 요약까지 모임의 흐름을 함께 설계하고 코칭해드릴게요.`,
-                curator: `지금의 관심사와 독서 취향을 바탕으로 어울리는 책을 찾아드리고, 고른 책으로 다른 AI와 대화를 이어갈 수 있게 도와드릴게요.`
-            };
-            return `안녕하세요. ${name} 저는 AI 모아입니다.\n지금은 ${mode.title}의 역할로 함께할게요.\n${detail[normalizeAIModeKey(modeKey)]}\n${bookLine}`;
+            const bookLine = bookTitle ? `오늘은 『${bookTitle}』을 중심으로 이야기해볼게요.` : `아직 책이 정해지지 않았다면, 대화하면서 함께 정해도 괜찮아요.`;
+            return `안녕하세요. ${name} 저는 AI 독서파트너 모아입니다.
+${bookLine}
+모드를 고르지 않아도 제가 질문의 의도를 보고 설명, 토론, 정리, 추천을 자연스럽게 이어갈게요.`;
         }
+
 
         function setAISetupStage(stage) {
             state.aiSetupStage = stage;
             const badge = document.getElementById('ai-current-mode-badge');
             if (badge) {
-                const label = stage === 'askBook' ? '책 선택 중' : stage === 'askMode' ? '모드 선택 중' : getAIMode().badge;
+                const label = stage === 'askBook' ? '책 선택 중' : '독서파트너';
                 badge.textContent = label;
             }
             updateAIHeaderStatus();
@@ -2015,7 +1991,9 @@
                 return `지금은 취향을 조금 더 파악하면 추천이 정확해질 것 같아요.\n요즘 마음이 가벼워지는 책을 원하시는지, 아니면 『${state.currentAIBook || '데미안'}』처럼 자아와 성장에 대해 깊게 생각할 책을 원하시는지에 따라 추천이 달라져요.\n최근 좋았던 책 1권과 피하고 싶은 분위기 1가지만 알려주실래요?`;
             }
 
-            return `좋아요. 이 대화는 계속 이어갈 수 있어요. 필요하면 제가 알맞은 AI로 자연스럽게 바통을 넘겨드릴게요.`;
+            return `좋아요. 방금 말씀을 바탕으로 같이 이어가볼게요.
+모아는 모드를 따로 고르지 않아도 질문의 성격에 맞춰 설명하거나, 토론하거나, 생각을 정리해드릴 수 있어요.
+지금은 가장 궁금한 장면이나 마음에 남은 문장 하나부터 이야기해볼까요?`;
         }
 
         function saveCurrentAIChat() {
@@ -2023,7 +2001,7 @@
             if (!state.aiChatHistory || state.aiChatHistory.length < 2) { showToast('저장할 대화가 없습니다.', 'error'); return; }
             const list = loadAIChats();
             const mode = getAIMode();
-            const item = { id: Date.now(), title: `${state.currentAIBook || '책 미지정'} · ${mode.badge}`, book: state.currentAIBook || '', mode: normalizeAIModeKey(state.currentAIMode || 'debate'), history: state.aiChatHistory, locked:false, favorite:false, createdAt:'오늘' };
+            const item = { id: Date.now(), title: `${state.currentAIBook || '책 미지정'} · AI 독서파트너`, book: state.currentAIBook || '', mode: 'moa', history: state.aiChatHistory, locked:false, favorite:false, createdAt:'오늘' };
             saveAIChats([item, ...list].slice(0, 20));
             showToast('AI 대화가 저장되었습니다.');
         }
@@ -2046,6 +2024,7 @@
             state.aiChatTurns = Math.max(0, Math.floor((state.aiChatHistory.length - 2) / 2));
             renderAIModeSelector();
             renderAIBookAnalysisCard(state.currentAIBook);
+            renderAIInsightPanel();
             safeSetText('ai-chat-header-book', `${state.currentAIBook ? `『${state.currentAIBook}』` : 'AI 독서 파트너'}`);
             const scroller = document.getElementById('ai-chat-scroller');
             if (scroller) {
@@ -2063,7 +2042,7 @@
         function shareAIChat(type='summary') {
             if (isGuestUser()) { showGuestJoinPrompt('ai'); return; }
             const mode = getAIMode();
-            const text = type === 'full' ? aiHistoryToPlainText(state.aiChatHistory) : `『${state.currentAIBook || '책'}』에 대해 AI와 ${mode.badge}로 대화했어요.\n\n${(document.getElementById('note-impressive')?.innerText || '').replace(/\s+/g,' ').trim()}\n${(document.getElementById('note-perspective')?.innerText || '').replace(/\s+/g,' ').trim()}`;
+            const text = type === 'full' ? aiHistoryToPlainText(state.aiChatHistory) : `『${state.currentAIBook || '책'}』에 대해 AI 독서파트너 모아와 대화했어요.\n\n${(document.getElementById('note-impressive')?.innerText || '').replace(/\s+/g,' ').trim()}\n${(document.getElementById('note-perspective')?.innerText || '').replace(/\s+/g,' ').trim()}`;
             const title = prompt('토론방에 공유할 문구를 확인해주세요.', text);
             if (!title) return;
             state.socialPosts.unshift({ id: Date.now(), author: state.currentUser.nickname, time:'방금', category:'감상', book: state.currentAIBook || '', text: escapeHTML(title).replace(/\n/g,'<br>'), likes:0, liked:false, showComments:false, comments:[] });
@@ -2098,8 +2077,6 @@
 
         function openNewAIChatModal() {
             document.getElementById('new-ai-chat-book-title').value = '';
-            const modeSelect = document.getElementById('new-ai-chat-mode');
-            if (modeSelect) modeSelect.value = state.currentAIMode || 'debate';
             document.getElementById('new-ai-chat-modal').classList.remove('hidden');
         }
 
@@ -2109,10 +2086,9 @@
 
         function startNewAIChat() {
             const title = document.getElementById('new-ai-chat-book-title').value.trim();
-            const selectedMode = document.getElementById('new-ai-chat-mode')?.value || state.currentAIMode || 'debate';
             closeNewAIChatModal();
-            resetAIChat(title, selectedMode);
-            showToast(title ? `『${title}』 ${getAIMode().title}를 시작합니다.` : `${getAIMode().title}와 새 대화를 시작합니다.`);
+            resetAIChat(title, 'moa');
+            showToast(title ? `『${title}』으로 AI 독서 대화를 시작합니다.` : `AI 독서파트너 모아와 새 대화를 시작합니다.`);
         }
 
         function getMockBookAnalysis(bookTitle) {
@@ -2169,21 +2145,58 @@
                 <div><span class="block text-[10px] font-bold text-gray-400 mb-1">핵심 키워드</span><div class="flex flex-wrap gap-1">${data.keywords.map(k=>`<span class="bg-brand-sageLight text-brand-sageDark px-2 py-0.5 rounded-full text-[9px] font-bold">#${k}</span>`).join('')}</div></div>
                 <div class="text-[11px] text-gray-600"><b class="text-brand-navy">추천 대상</b><br>${data.target}</div>
                 <div class="pt-2 border-t border-brand-ivoryDark space-y-1">
-                    <b class="text-brand-navy text-[11px]">${getAIMode().title} 가이드</b>
+                    <b class="text-brand-navy text-[11px]">AI 독서파트너 가이드</b>
                     <ol class="list-decimal list-inside space-y-1 text-[11px] text-gray-600">
                         ${getAIModeGuideHTML()}
                     </ol>
                 </div>`;
         }
 
+        function renderAIInsightPanel() {
+            const confidenceEl = document.getElementById('ai-insight-confidence');
+            const barEl = document.getElementById('ai-insight-bar');
+            const detailEl = document.getElementById('ai-insight-detail');
+            const recEl = document.getElementById('ai-book-recommendation-list');
+            if (!confidenceEl || !barEl || !detailEl || !recEl) return;
+            const userMessages = (state.aiChatHistory || []).filter(h => h.role === 'user').map(h => h.parts?.[0]?.text || '').filter(Boolean);
+            const meaningfulTurns = Math.max(0, userMessages.length - 1);
+            const confidence = Math.min(100, Math.round((meaningfulTurns / 8) * 100));
+            confidenceEl.textContent = `${confidence}%`;
+            barEl.style.width = `${confidence}%`;
+            const text = userMessages.join(' ');
+            const hasEmotion = /느꼈|마음|슬프|좋았|불편|공감|감정|인상/.test(text);
+            const hasQuestion = /왜|어떻게|무엇|궁금|질문|이해/.test(text);
+            const hasReality = /현실|사회|요즘|내 삶|경험|문제|우리/.test(text);
+            const hasWriting = /서평|독후감|글|문장|정리|메모/.test(text);
+            const hasMeeting = /모임|토론|발제|질문|진행/.test(text);
+            if (meaningfulTurns < 3) {
+                detailEl.innerHTML = '아직은 대화가 부족해요. 책에서 궁금했던 장면이나 마음에 남은 이유를 조금 더 들려주면 분석이 시작됩니다.';
+                recEl.innerHTML = '추천도서는 충분한 대화 이후에 표시됩니다. 지금은 먼저 책에 대한 감상과 질문을 나눠보세요.';
+                return;
+            }
+            const traits = [];
+            if (hasEmotion) traits.push('인물의 감정선과 장면의 여운에 민감하게 반응합니다.');
+            if (hasQuestion) traits.push('이해되지 않는 지점을 질문으로 바꾸며 읽는 경향이 있습니다.');
+            if (hasReality) traits.push('책의 주제를 현실 문제나 자신의 경험과 연결하려는 편입니다.');
+            if (hasWriting) traits.push('읽은 내용을 문장이나 기록으로 정리하려는 욕구가 보입니다.');
+            if (hasMeeting) traits.push('혼자 읽기보다 타인과 의견을 나누며 생각을 확장하는 흐름이 있습니다.');
+            detailEl.innerHTML = `<b class="block text-brand-navy mb-1">현재 읽기 흐름</b>${(traits.length ? traits : ['책의 핵심 장면과 주제를 천천히 확인하며 읽는 흐름이 보입니다.']).map(t=>`<div class="mt-1">• ${escapeHTML(t)}</div>`).join('')}`;
+            if (meaningfulTurns < 8) {
+                recEl.innerHTML = `<b class="text-brand-navy">추천 준비 중</b><br>현재 대화 ${meaningfulTurns}회차입니다. 최소 8회 이상 대화가 쌓이면 모아가 이유를 붙여 추천도서를 보여드릴게요.`;
+                return;
+            }
+            const recs = hasReality ? [['소년이 온다','개인의 감정과 사회적 기억을 함께 읽는 흐름과 잘 맞습니다.'],['1984','권력과 사회 구조를 현실 문제와 연결해 생각하기 좋습니다.'],['작별인사','인간다움과 기술, 관계의 문제를 함께 질문할 수 있습니다.']] : hasEmotion ? [['불편한 편의점','인물의 상처와 회복을 따라가며 감정선을 깊게 읽기 좋습니다.'],['아몬드','감정과 공감의 의미를 생각하는 독자에게 잘 맞습니다.'],['달러구트 꿈 백화점','상상력 안에서 삶의 감정과 위로를 발견하기 좋습니다.']] : [['데미안','자아와 성장에 대한 질문을 깊게 이어갈 수 있습니다.'],['어린 왕자','관계, 책임, 길들임의 의미를 짧지만 깊게 토론하기 좋습니다.'],['동물농장','짧은 이야기로 사회적 비유와 권력 문제를 생각하기 좋습니다.']];
+            recEl.innerHTML = `<div class="space-y-2">${recs.map(([title, reason])=>`<button onclick="sendAIChip('『${escapeHTML(title)}』를 왜 추천하는지 더 설명해줘')" class="w-full text-left p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark hover:border-brand-sage transition-all"><b class="block text-brand-navy">『${escapeHTML(title)}』</b><span class="text-gray-500">${escapeHTML(reason)}</span></button>`).join('')}</div>`;
+        }
+
         function resetAIChat(bookTitle = state.currentAIBook, modeKey = state.currentAIMode || 'debate') {
             state.currentAIBook = bookTitle || '';
             state.currentAIBookMeta = null;
             state.currentAIBookKnowledge = null;
-            state.currentAIMode = normalizeAIModeKey(modeKey);
+            state.currentAIMode = 'moa';
             state.aiChatTurns = 0;
             state.pendingAIBookValidation = null;
-            setAISetupStage(bookTitle ? 'askMode' : 'askBook');
+            setAISetupStage(bookTitle ? 'chat' : 'askBook');
             renderAIModeSelector();
             setAISetupStage('chat');
             renderAIHistoryList();
@@ -2201,6 +2214,7 @@
             if (headerBookEl) headerBookEl.innerText = `${state.currentAIBook ? `『${state.currentAIBook}』` : '책을 먼저 정해볼게요'} · AI 모아`;
             updateAIHeaderStatus();
             renderAIBookAnalysisCard(state.currentAIBook);
+            renderAIInsightPanel();
 
             const scroller = document.getElementById('ai-chat-scroller');
             const welcomeMsg = getAIModeOpening(bookTitle, state.currentAIMode).replace(/\n/g, '<br>');
@@ -2307,16 +2321,39 @@
         async function fetchGeminiResponse(history) {
             const conversationText = aiHistoryToPlainText(history, true).slice(-6000);
             const latest = getLatestUserMessage(history);
-            const systemPrompt = `너는 BOOKMATE의 AI 독서 파트너 'AI 모아'이다.
-책에 대한 질문, 줄거리 요약, 등장인물 설명, 핵심 주제 분석, 반대 의견 제시, 토론 질문 생성, 독서모임 준비, 서평 작성, 책 추천을 자연스럽게 도와준다.
-현재 책: ${state.currentAIBook ? `'${state.currentAIBook}'` : '아직 정하지 않음'}.
-운영 원칙:
-1. 모드를 고르라고 요구하지 않는다. 사용자의 요청 의도를 바로 파악해서 답한다.
-2. 사용자가 책 제목을 말하면 그 책을 중심으로 대화를 이어간다.
-3. 스포일러가 클 수 있는 내용은 필요하면 먼저 확인한다.
-4. 모르는 내용은 지어내지 말고 확인이 필요하다고 말한다.
-5. 한국어로, 실제 독서 파트너처럼 자연스럽게 답한다.
-6. 사용자가 글쓰기나 독서모임 준비를 요청하면 바로 사용할 수 있는 형태로 정리한다.`;
+            const userTurns = (history || []).filter(h => h.role === 'user').length;
+            const systemPrompt = `너는 BOOKMATE의 AI 독서파트너 '모아'이다.
+
+너의 역할은 단순한 질문답변 AI가 아니라, 사용자와 함께 책을 읽고 생각을 나누는 독서 친구이다. 절대 자신을 AI 모델이라고 소개하지 않는다. 항상 '모아'라는 이름으로 대화한다.
+
+현재 책: ${state.currentAIBook ? `'${state.currentAIBook}'` : '아직 정하지 않음'}
+현재까지 사용자 발화 수: ${userTurns}회
+
+[대화 원칙]
+- 사용자가 무엇을 원하는지 먼저 파악한다.
+- 사용자는 모드를 선택하지 않는다. 너는 필요에 따라 독서 친구, 독서토론 진행자, 문학 해설자, 글쓰기 코치, 독서 코치, 추천 큐레이터 역할을 자연스럽게 오간다.
+- 친절하지만 과하게 밝지 않다. 도서관 사서처럼 차분하고 따뜻하게 말한다.
+- 정답을 단정하기보다 생각을 함께 확장한다.
+- 사용자의 의견을 틀렸다고 말하기보다 “그렇게 볼 수도 있어요”, “다른 시각도 있어요”처럼 이어간다.
+
+[독서 대화]
+- 사용자가 “잘 모르겠어요”라고 하면 긴 설명부터 하지 말고 어떤 부분이 궁금했는지 먼저 묻는다.
+- 스포일러가 클 수 있는 줄거리나 결말은 사용자가 읽는 중인지 확인한다.
+- 사용자가 “다 읽었어요”, “스포일러 괜찮아요”라고 말하면 더 깊게 설명한다.
+- 사용자의 의견에는 공감 → 질문 → 생각 확장 순서로 반응한다.
+- 한 번에 질문은 하나만 한다. 질문을 세 개 이상 연속하지 않는다.
+- 답변은 보통 3~6문장으로 한다. 필요하면 사용자가 이어서 물을 수 있게 남긴다.
+
+[독서 인사이트와 추천]
+- 대화가 8회 미만이면 성향을 단정하거나 추천도서를 확정하지 않는다. “조금 더 이야기하면 더 정확히 추천할 수 있어요”라고 말한다.
+- 8회 이상 대화가 쌓이면 어떤 인물/주제에 반응하는지, 감정·현실·철학·사회 문제 중 어디에 관심이 있는지 조심스럽게 분석한다.
+- 추천도서는 최소 8회 이상의 대화 이후에만 2~3권 정도 추천하고, 반드시 추천 이유를 붙인다.
+
+[모르는 책]
+- 모르는 책은 추측하지 않는다. “조금 더 내용을 알려주시면 함께 이야기해볼게요”라고 말한다.
+
+[목표]
+항상 사용자가 더 깊게 읽고, 더 많이 생각하도록 돕는다. 답을 끝내기보다 생각을 이어가게 만드는 것이 목표이다.`;
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -2358,7 +2395,7 @@
                     await setAIBookFromBook(pendingBook, true);
                     setPendingBookValidation(null);
                     setupReply = getModeChoicePrompt(pendingBook.title);
-                    setAISetupStage('askMode');
+                    setAISetupStage('chat');
                 } else if (isNoBookAnswer(txt)) {
                     setupReply = `괜찮아요. 그렇다면 최근에 읽은 책은 무슨 책이신가요? 그 책에 대해서 이야기 나눠보는 건 어떠세요?
 최근에 읽은 책도 없다면 “추천해줘”라고 말씀해주세요. 큐레이터 AI가 책 선택부터 도와드릴게요.`;
@@ -2370,7 +2407,7 @@
                         await setAIBookFromBook(validation.book, true);
                         setPendingBookValidation(null);
                         setupReply = getModeChoicePrompt(validation.book.title);
-                        setAISetupStage('askMode');
+                        setAISetupStage('chat');
                     } else if (validation.status === 'suggest') {
                         setPendingBookValidation(validation);
                         setupReply = buildBookSuggestReply(validation);
@@ -2398,16 +2435,15 @@
                     setPendingBookValidation(null);
                     const setupReply = `좋아요. 그럼 『${pendingBook.title}』으로 이야기 나눠볼게요.
 ${getModeChoicePrompt(pendingBook.title)}`;
-                    setAISetupStage('askMode');
+                    setAISetupStage('chat');
                     state.aiChatHistory.push({ role: 'model', parts: [{ text: setupReply }] });
                     appendAIMessageToScroller('model', setupReply);
                     scroller.scrollTop = scroller.scrollHeight;
                     return;
                 }
                 if (isNoBookAnswer(txt) || /추천|골라|찾아/.test(txt)) {
-                    switchAIPartner('curator', '책 선택부터 함께 도와드릴게요.');
                     setAISetupStage('chat');
-                    const setupReply = `좋아요. 큐레이터 AI가 이어받겠습니다.
+                    const setupReply = `좋아요. 책 선택부터 모아가 함께 도와드릴게요.
 요즘 어떤 분위기의 책을 읽고 싶으신가요? 가볍게 읽고 싶은지, 깊이 생각하고 싶은지, 또는 관심 있는 주제가 있는지만 알려주셔도 괜찮아요.`;
                     state.aiChatHistory.push({ role: 'model', parts: [{ text: setupReply }] });
                     appendAIMessageToScroller('model', setupReply);
@@ -2421,7 +2457,7 @@ ${getModeChoicePrompt(pendingBook.title)}`;
                         setPendingBookValidation(null);
                         setupReply = `좋아요. 그럼 최근에 읽으신 『${validation.book.title}』으로 이야기 나눠볼게요.
 ${getModeChoicePrompt(validation.book.title)}`;
-                        setAISetupStage('askMode');
+                        setAISetupStage('chat');
                     } else if (validation.status === 'suggest') {
                         setPendingBookValidation(validation);
                         setupReply = buildBookSuggestReply(validation);
@@ -2443,35 +2479,20 @@ ${getModeChoicePrompt(validation.book.title)}`;
             }
 
             if (state.aiSetupStage === 'askMode') {
-                const selected = inferExplicitModeFromUserText(txt);
-                if (selected) {
-                    state.currentAIMode = normalizeAIModeKey(selected);
-                    renderAIModeSelector();
-                    setAISetupStage('chat');
-                    safeSetText('ai-chat-header-book', `${state.currentAIBook ? `『${state.currentAIBook}』` : 'AI 독서 파트너'}`);
-                    renderAIBookAnalysisCard(state.currentAIBook);
-                    const setupReply = getModeStartMessage(state.currentAIMode, state.currentAIBook);
-                    state.aiChatHistory.push({ role: 'model', parts: [{ text: setupReply }] });
-                    appendAIMessageToScroller('model', setupReply);
-                    scroller.scrollTop = scroller.scrollHeight;
-                    return;
-                } else {
-                    const setupReply = `원하는 모드를 아래 네 가지 중에서 골라주세요.
-📖 독서토론 AI / 💭 생각정리 AI / 👥 독서모임 코칭 AI / 📚 큐레이터 AI
-
-예: “독서토론 AI로 할게요”처럼 말씀해주시면 바로 시작하겠습니다.`;
-                    state.aiChatHistory.push({ role: 'model', parts: [{ text: setupReply }] });
-                    appendAIMessageToScroller('model', setupReply);
-                    scroller.scrollTop = scroller.scrollHeight;
-                    return;
-                }
+                setAISetupStage('chat');
+                const setupReply = getModeStartMessage('moa', state.currentAIBook);
+                state.aiChatHistory.push({ role: 'model', parts: [{ text: setupReply }] });
+                appendAIMessageToScroller('model', setupReply);
+                scroller.scrollTop = scroller.scrollHeight;
+                return;
             }
+
 
             const pendingBookInChat = resolvePendingBookByUserText(txt);
             if (pendingBookInChat) {
                 await setAIBookFromBook(pendingBookInChat, true);
                 setPendingBookValidation(null);
-                const setupReply = `좋아요. 『${pendingBookInChat.title}』로 대화 주제를 설정했어요.\n이제 ${getAIMode().title}의 역할로 이어가볼게요.`;
+                const setupReply = `좋아요. 『${pendingBookInChat.title}』로 대화 주제를 설정했어요.\n이제 모아와 자연스럽게 이어가볼게요.`;
                 state.aiChatHistory.push({ role: 'model', parts: [{ text: setupReply }] });
                 appendAIMessageToScroller('model', setupReply);
                 scroller.scrollTop = scroller.scrollHeight;
@@ -2484,7 +2505,7 @@ ${getModeChoicePrompt(validation.book.title)}`;
                 if (validation.status === 'confirmed') {
                     await setAIBookFromBook(validation.book, true);
                     setPendingBookValidation(null);
-                    factReply = `네, ${bookDisplay(validation.book)}은 실제로 확인되는 책이에요.\n이 책으로 대화를 이어갈까요? 원하시면 바로 ${getAIMode().title}로 시작할 수 있어요.`;
+                    factReply = `네, ${bookDisplay(validation.book)}은 실제로 확인되는 책이에요.\n이 책으로 대화를 이어갈까요? 원하시면 바로 이 책으로 대화를 이어갈 수 있어요.`;
                 } else if (validation.status === 'suggest') {
                     setPendingBookValidation(validation);
                     factReply = `정확히는 ${bookDisplay(validation.book)}이 확인돼요.\n혹시 이 책을 말씀하신 걸까요?`;
@@ -2518,7 +2539,7 @@ ${getModeChoicePrompt(validation.book.title)}`;
 
             }
             const inferredMode = inferAIModeFromUserText(txt);
-            if (inferredMode !== normalizeAIModeKey(state.currentAIMode || 'debate')) {
+            if (false && inferredMode !== normalizeAIModeKey(state.currentAIMode || 'debate')) {
                 const reasonMap = { debate:'책에 대해 다른 독자의 관점으로 토론해볼게요.', organize:'지금까지의 생각을 정리해볼게요.', coaching:'이 내용을 독서모임 흐름으로 바꿔볼게요.', curator:'대화 맥락에 맞는 책을 찾아볼게요.' };
                 switchAIPartner(inferredMode, reasonMap[inferredMode] || '대화 의도에 맞춰 이어갈게요.');
             }
@@ -2545,6 +2566,7 @@ ${getModeChoicePrompt(validation.book.title)}`;
 
             if (!state.aiChatTurns) state.aiChatTurns = 0;
             state.aiChatTurns++;
+            renderAIInsightPanel();
             if (isGuestUser() && state.aiChatTurns === 2) {
                 setTimeout(() => { appendGuestAIJoinCard(scroller); }, 800);
             }
