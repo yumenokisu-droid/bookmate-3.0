@@ -558,6 +558,8 @@
                 if (viewName === 'guest-gate') activeView.classList.add('guest-gate-overlay');
             }
             updateGuestHomeVisibility();
+            if (viewName === 'ai-chat') renderAIRightSidebar();
+            if (viewName === 'archive') renderSavedAIArchives();
             window.scrollTo({ top: 0, behavior: 'smooth' });
             lucide.createIcons();
         }
@@ -1965,6 +1967,7 @@
             const mode = getAIMode();
             const item = { id: Date.now(), title: `${state.currentAIBook || '책 미지정'} · ${mode.badge}`, book: state.currentAIBook || '', mode: normalizeAIModeKey(state.currentAIMode || 'debate'), history: state.aiChatHistory, locked:false, favorite:false, createdAt:'오늘' };
             saveAIChats([item, ...list].slice(0, 20));
+            renderAIHistoryList();
             showToast('AI 대화가 저장되었습니다.');
         }
 
@@ -1993,6 +1996,7 @@
                 (state.aiChatHistory || []).slice(1).forEach(h => appendAIMessageToScroller(h.role, h.parts?.[0]?.text || ''));
                 scroller.scrollTop = scroller.scrollHeight;
             }
+            renderAIRightSidebar();
             showToast('저장된 대화를 열었습니다.');
         }
 
@@ -2001,13 +2005,7 @@
         function deleteAIChat(id) { const list=loadAIChats(); const item=list.find(x=>x.id===id); if(item?.locked){ showToast('잠금된 대화는 삭제할 수 없습니다. 잠금을 해제해주세요.', 'error'); return; } if(!confirm('이 AI 대화 기록을 삭제할까요?')) return; saveAIChats(list.filter(x=>x.id!==id)); showToast('AI 대화 기록을 삭제했습니다.'); }
 
         function shareAIChat(type='summary') {
-            if (isGuestUser()) { showGuestJoinPrompt('ai'); return; }
-            const mode = getAIMode();
-            const text = type === 'full' ? aiHistoryToPlainText(state.aiChatHistory) : `『${state.currentAIBook || '책'}』에 대해 AI와 ${mode.badge}로 대화했어요.\n\n${(document.getElementById('note-impressive')?.innerText || '').replace(/\s+/g,' ').trim()}\n${(document.getElementById('note-perspective')?.innerText || '').replace(/\s+/g,' ').trim()}`;
-            const title = prompt('토론방에 공유할 문구를 확인해주세요.', text);
-            if (!title) return;
-            state.socialPosts.unshift({ id: Date.now(), author: state.currentUser.nickname, time:'방금', category:'감상', book: state.currentAIBook || '', text: escapeHTML(title).replace(/\n/g,'<br>'), likes:0, liked:false, showComments:false, comments:[] });
-            persistSocialState(); renderSocialFeed(); showToast('AI 대화를 토론방에 공유했습니다.');
+            openAIShareModal(type);
         }
         function shareSavedAIChat(id) { const item=loadAIChats().find(x=>x.id===id); if(!item)return; state.currentAIBook=item.book; state.currentAIMode=normalizeAIModeKey(item.mode || 'debate'); state.aiChatHistory=item.history; shareAIChat('full'); }
 
@@ -2139,6 +2137,7 @@
             if (headerBookEl) headerBookEl.innerText = `${state.currentAIBook ? `『${state.currentAIBook}』` : 'AI 독서파트너 모아'}`;
             updateAIHeaderStatus();
             renderAIBookAnalysisCard(state.currentAIBook);
+            renderAIRightSidebar();
 
             const scroller = document.getElementById('ai-chat-scroller');
             const welcomeMsg = getAIModeOpening(bookTitle, state.currentAIMode).replace(/\n/g, '<br>');
@@ -2466,6 +2465,7 @@ ${getModeChoicePrompt(validation.book.title)}`;
 
             if (!state.aiChatTurns) state.aiChatTurns = 0;
             state.aiChatTurns++;
+            renderAIRightSidebar();
             if (isGuestUser() && state.aiChatTurns === 2) {
                 setTimeout(() => { appendGuestAIJoinCard(scroller); }, 800);
             }
@@ -2517,6 +2517,197 @@ ${getModeChoicePrompt(validation.book.title)}`;
             }
         }
 
+
+
+        // BOOKMATE v3.4: AI conversation insights, recommendations, share modal, archive save
+        const AI_ARCHIVE_KEY = 'bookmate_v3_ai_archives';
+        let aiShareDraft = { type: 'summary', text: '', title: '' };
+
+        function getAIUserTurns(history = state.aiChatHistory) {
+            return (history || []).filter(h => h.role === 'user').length;
+        }
+
+        function getAIPlainMessages(history = state.aiChatHistory) {
+            return (history || []).filter(h => h && h.parts && h.parts[0] && h.parts[0].text).map(h => ({ role: h.role, text: String(h.parts[0].text || '').trim() }));
+        }
+
+        function aiHistoryToPlainText(history = state.aiChatHistory) {
+            const rows = getAIPlainMessages(history).filter((m, idx) => !(idx === 0 && m.text.includes('독서 대화를 시작')));
+            if (!rows.length) return '아직 기록할 대화가 없습니다.';
+            return rows.map(m => `${m.role === 'model' ? '모아' : (state.currentUser?.nickname || '나')}: ${m.text}`).join('\n\n');
+        }
+
+        function summarizeAIConversation(limit = 1000) {
+            const messages = getAIPlainMessages(state.aiChatHistory).filter(m => m.role === 'user');
+            const book = state.currentAIBook || inferBookFromAIHistory() || '주제도서 미정';
+            const userTexts = messages.map(m => m.text).filter(t => !t.includes('독서 대화를 시작'));
+            if (!userTexts.length) return '아직 요약할 대화가 충분하지 않습니다. 책 제목이나 인상 깊은 장면을 조금 더 이야기해보세요.';
+            const keywords = extractAIKeywords(userTexts.join(' ')).slice(0, 6);
+            const questions = userTexts.filter(t => /\?|왜|어떻게|무엇|궁금|이해|설명|정리|추천|토론/.test(t)).slice(-3);
+            const summary = [
+                `주제도서: ${book}`,
+                `관심 주제: ${keywords.length ? keywords.join(', ') : '대화 확장 중'}`,
+                `대화 흐름: ${userTexts.slice(-4).map(t => compactText(t, 90)).join(' → ')}`,
+                questions.length ? `주요 질문: ${questions.map(q => compactText(q, 80)).join(' / ')}` : '주요 질문: 아직 명확한 질문보다 자유 감상 중심으로 대화가 진행되고 있습니다.',
+                `모아의 관찰: 현재 대화는 ${inferInterpretationStyle(userTexts.join(' '))} 경향이 보입니다. 추천도서와 독서모임은 이 흐름을 기준으로 제안됩니다.`
+            ].join('\n');
+            return summary.length > limit ? summary.slice(0, limit - 1) + '…' : summary;
+        }
+
+        function compactText(text, max = 120) {
+            const t = String(text || '').replace(/\s+/g, ' ').trim();
+            return t.length > max ? t.slice(0, max - 1) + '…' : t;
+        }
+
+        function extractAIKeywords(text) {
+            const t = String(text || '');
+            const candidates = [
+                ['인물 심리', /인물|주인공|심리|마음|감정|관계/],
+                ['사회 문제', /사회|현실|문제|구조|차별|노동|세대|폭력/],
+                ['철학적 질문', /의미|존재|삶|죽음|자아|선택|자유|책임/],
+                ['서평·글쓰기', /서평|독후감|문장|글|작성|다듬|표현/],
+                ['토론 준비', /토론|논제|발제|질문|모임|의견/],
+                ['줄거리 이해', /줄거리|내용|요약|등장인물|장면|결말/],
+                ['책 추천', /추천|비슷한 책|다음 책|읽을 책/],
+                ['현실 연결', /현실|나도|경험|요즘|우리|일상|적용/]
+            ];
+            return candidates.filter(([, re]) => re.test(t)).map(([label]) => label);
+        }
+
+        function inferBookFromAIHistory() {
+            const text = getAIPlainMessages().map(m => m.text).join(' ');
+            const known = (typeof findKnownBook === 'function') ? null : null;
+            const titles = (state.recentBooks || []).concat(state.gatherings || []).map(x => x.title || x.book).filter(Boolean);
+            return titles.find(title => text.includes(title)) || '';
+        }
+
+        function inferInterpretationStyle(text) {
+            const t = String(text || '');
+            if (/왜|의미|상징|주제|작가|해석|철학|존재|자아/.test(t)) return '작품의 의미와 상징을 파고드는 해석 중심';
+            if (/나도|경험|현실|일상|우리|요즘|사회/.test(t)) return '책의 내용을 현실 경험과 연결하는 확장 중심';
+            if (/인물|마음|감정|관계|주인공/.test(t)) return '인물의 감정선과 관계를 따라가는 인물 중심';
+            if (/서평|문장|정리|글|표현/.test(t)) return '읽은 내용을 자기 언어로 정리하려는 기록 중심';
+            return '질문을 통해 책의 핵심을 천천히 확인하는 탐색 중심';
+        }
+
+        function getAIInsightData() {
+            const userTexts = getAIPlainMessages().filter(m => m.role === 'user').map(m => m.text).filter(t => !t.includes('독서 대화를 시작'));
+            const joined = userTexts.join(' ');
+            const turns = userTexts.length;
+            const keywords = extractAIKeywords(joined);
+            const book = state.currentAIBook || inferBookFromAIHistory();
+            return {
+                ready: turns >= 4,
+                confidence: Math.min(100, Math.max(12, turns * 18)),
+                book: book || '대화 중 파악 중',
+                keywords: keywords.length ? keywords : ['대화 축적 중'],
+                questionHabit: /왜|어떻게|무엇|궁금|이해|설명/.test(joined) ? '이유와 맥락을 확인하며 읽는 편' : '감상과 인상에서 출발해 생각을 넓히는 편',
+                style: inferInterpretationStyle(joined)
+            };
+        }
+
+        function renderAIRightSidebar() {
+            const insightEl = document.getElementById('ai-insight-panel');
+            const gatheringEl = document.getElementById('ai-gathering-recommendations');
+            const bookEl = document.getElementById('ai-book-recommendations');
+            if (!insightEl || !gatheringEl || !bookEl) return;
+            const data = getAIInsightData();
+            if (!data.ready) {
+                const need = Math.max(0, 4 - getAIPlainMessages().filter(m => m.role === 'user' && !m.text.includes('독서 대화를 시작')).length);
+                insightEl.innerHTML = `<div class="p-4 rounded-2xl bg-brand-ivory/60 border border-dashed border-brand-ivoryDark text-center"><p class="text-xs font-bold text-brand-navy">아직 분석 중입니다.</p><p class="text-[11px] text-gray-500 leading-relaxed mt-1">${need ? `대화를 ${need}번 정도 더 나누면` : '조금 더 이야기하면'} 인사이트가 열립니다.</p></div>`;
+                gatheringEl.innerHTML = `<div class="p-4 rounded-2xl bg-brand-ivory/50 border border-dashed border-brand-ivoryDark text-center text-[11px] text-gray-400 leading-relaxed">대화 기반 인사이트가 쌓이면<br>추천 모임이 나타납니다.</div>`;
+                bookEl.innerHTML = `<div class="p-4 rounded-2xl bg-brand-ivory/50 border border-dashed border-brand-ivoryDark text-center text-[11px] text-gray-400 leading-relaxed">대화가 더 쌓이면<br>추천도서와 이유가 나타납니다.</div>`;
+                return;
+            }
+            insightEl.innerHTML = `<div class="space-y-3"><div class="p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark"><span class="block text-[10px] font-bold text-gray-400">주제도서</span><b class="text-xs text-brand-navy">${escapeHTML(data.book)}</b></div><div class="p-3 rounded-2xl bg-brand-sageLight/50 border border-brand-sage/20"><span class="block text-[10px] font-bold text-brand-sageDark">관심주제</span><div class="flex flex-wrap gap-1.5 mt-2">${data.keywords.slice(0,5).map(k=>`<span class="px-2 py-1 rounded-full bg-white border border-brand-ivoryDark text-[10px] font-bold text-brand-navy">${escapeHTML(k)}</span>`).join('')}</div></div><div class="grid grid-cols-1 gap-2 text-[11px]"><div class="p-3 rounded-xl bg-white border border-brand-ivoryDark"><b class="block text-brand-navy mb-1">질문 습관</b><span class="text-gray-600">${escapeHTML(data.questionHabit)}</span></div><div class="p-3 rounded-xl bg-white border border-brand-ivoryDark"><b class="block text-brand-navy mb-1">해석 방식</b><span class="text-gray-600">${escapeHTML(data.style)}</span></div></div><div><div class="flex justify-between text-[10px] font-bold text-gray-400 mb-1"><span>분석 신뢰도</span><span>${data.confidence}%</span></div><div class="h-2 rounded-full bg-brand-ivoryDark overflow-hidden"><div class="h-full bg-brand-sage rounded-full" style="width:${data.confidence}%"></div></div></div></div>`;
+            renderAIGatheringRecommendations(data);
+            renderAIBookRecommendations(data);
+            try { lucide.createIcons(); } catch(e) {}
+        }
+
+        function renderAIGatheringRecommendations(data) {
+            const el = document.getElementById('ai-gathering-recommendations'); if (!el) return;
+            const currentBook = normalizeTitleKey(data.book || state.currentAIBook || '');
+            const words = (data.keywords || []).join(' ');
+            const scored = (state.gatherings || []).map(g => {
+                let score = Number(g.suitability || 70);
+                if (currentBook && normalizeTitleKey(g.book || '') === currentBook) score += 15;
+                (g.keywords || []).forEach(k => { if (words.includes(k) || words.includes('사회') && k.includes('사회') || words.includes('인물') && k.includes('소설')) score += 8; });
+                if (g.joined) score -= 10;
+                return { ...g, aiScore: Math.min(99, score) };
+            }).sort((a,b)=>b.aiScore-a.aiScore).slice(0,2);
+            el.innerHTML = scored.map(g => `<button onclick="openGatheringDetail(${g.id})" class="w-full text-left p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark hover:border-brand-sage transition-all"><div class="flex justify-between gap-2"><b class="text-xs text-brand-navy line-clamp-2">${escapeHTML(g.title)}</b><span class="shrink-0 text-[10px] font-bold text-brand-sageDark">${g.aiScore}%</span></div><p class="text-[10px] text-gray-500 mt-1 line-clamp-2">${escapeHTML(g.book || '')} · ${escapeHTML(g.schedule || '')}</p><p class="text-[10px] text-brand-sageDark mt-2">현재 대화의 관심 주제와 맞닿아 있어요.</p></button>`).join('');
+        }
+
+        function renderAIBookRecommendations(data) {
+            const el = document.getElementById('ai-book-recommendations'); if (!el) return;
+            const current = normalizeTitleKey(state.currentAIBook || data.book || '');
+            const pool = [
+                { title:'데미안', reason:'자아와 성장의 의미를 깊게 묻는 대화 흐름과 잘 맞아요.' },
+                { title:'아몬드', reason:'인물의 감정과 공감의 방식을 함께 생각하기 좋아요.' },
+                { title:'불편한 편의점', reason:'일상 속 관계와 회복을 현실 경험과 연결해 읽기 좋아요.' },
+                { title:'소년이 온다', reason:'사회적 폭력과 기억의 문제를 진지하게 확장할 수 있어요.' },
+                { title:'모모', reason:'시간, 관계, 삶의 속도에 대한 질문을 이어가기 좋아요.' },
+                { title:'1984', reason:'사회 구조와 개인의 자유에 대한 토론으로 확장하기 좋아요.' },
+                { title:'동물농장', reason:'권력과 사회 풍자를 짧고 선명하게 토론할 수 있어요.' },
+                { title:'노인과 바다', reason:'인간의 의지와 고독을 상징적으로 읽기 좋아요.' }
+            ].filter(b => normalizeTitleKey(b.title) !== current).slice(0,3);
+            el.innerHTML = pool.map(b => `<button onclick="sendAIChip('${escapeAttr(b.title)}를 왜 추천하는지 설명해줘')" class="w-full text-left p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark hover:border-brand-sage transition-all"><b class="text-xs text-brand-navy">『${escapeHTML(b.title)}』</b><p class="text-[10px] text-gray-500 leading-relaxed mt-1">${escapeHTML(b.reason)}</p></button>`).join('');
+        }
+
+        function openAIShareModal(type = 'summary') {
+            if (!state.aiChatHistory || state.aiChatHistory.length < 2) { showToast('공유할 대화가 없습니다.', 'error'); return; }
+            const isFull = type === 'full';
+            const text = isFull ? aiHistoryToPlainText(state.aiChatHistory) : summarizeAIConversation(1000);
+            aiShareDraft = { type, text, title: isFull ? '전체 기록' : '대화 요약' };
+            safeSetText('ai-share-modal-title', aiShareDraft.title);
+            safeSetText('ai-share-modal-eyebrow', isFull ? 'FULL TRANSCRIPT' : 'SUMMARY · 1000자 이내');
+            const area = document.getElementById('ai-share-modal-content'); if (area) area.value = text;
+            const modal = document.getElementById('ai-share-modal');
+            if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+            setTimeout(()=>{ try { lucide.createIcons(); } catch(e) {} },0);
+        }
+
+        function closeAIShareModal() { const modal=document.getElementById('ai-share-modal'); if(modal){ modal.classList.add('hidden'); modal.classList.remove('flex'); } }
+        function copyAIShareContent() { const area=document.getElementById('ai-share-modal-content'); if(!area)return; area.select(); document.execCommand('copy'); showToast('내용을 복사했습니다.'); }
+        function shareAIConversationAsNote() { const text=document.getElementById('ai-share-modal-content')?.value || aiShareDraft.text; showToast('쪽지 공유용 내용이 준비되었습니다.'); copyTextFallback(text); }
+        function shareAIConversationAsLink() {
+            if (isGuestUser()) { showGuestJoinPrompt('ai'); return; }
+            const text=document.getElementById('ai-share-modal-content')?.value || aiShareDraft.text;
+            state.socialPosts.unshift({ id: Date.now(), author: state.currentUser.nickname, time:'방금', category:'감상', book: state.currentAIBook || '', text: escapeHTML(`[AI 모아 ${aiShareDraft.title}]\n${text}`).replace(/\n/g,'<br>'), likes:0, liked:false, showComments:false, comments:[] });
+            persistSocialState(); renderSocialFeed(); closeAIShareModal(); showToast('토론방에 공유 링크 형태로 등록했습니다.');
+        }
+        function copyTextFallback(text) { try { navigator.clipboard?.writeText(text); } catch(e) {} }
+
+        function loadAIArchives() { try { return JSON.parse(localStorage.getItem(AI_ARCHIVE_KEY) || '[]'); } catch(e) { return []; } }
+        function saveAIArchives(list) { localStorage.setItem(AI_ARCHIVE_KEY, JSON.stringify(list || [])); }
+        function saveAIChatToArchive() {
+            if (isGuestUser()) { showGuestJoinPrompt('archive'); return; }
+            if (!state.aiChatHistory || state.aiChatHistory.length < 2) { showToast('저장할 대화가 없습니다.', 'error'); return; }
+            const item = { id: Date.now(), title: `${state.currentAIBook || 'AI 독서 대화'} 기록`, book: state.currentAIBook || '', summary: summarizeAIConversation(1000), full: aiHistoryToPlainText(state.aiChatHistory), createdAt: new Date().toLocaleDateString('ko-KR') };
+            const list = loadAIArchives(); saveAIArchives([item, ...list].slice(0, 30));
+            state.recentArchives = [{ id: item.id, title: item.title, role: 'AI 대화', date: `${item.createdAt} 저장`, comments: 0 }, ...(state.recentArchives || [])].slice(0, 8);
+            renderSavedAIArchives(); renderMyPageRecentArchives(); showToast('현재 대화가 내 아카이브에 저장되었습니다.');
+        }
+
+        function renderSavedAIArchives() {
+            const view = document.getElementById('view-archive'); if (!view) return;
+            let box = document.getElementById('saved-ai-archive-list');
+            const list = loadAIArchives();
+            if (!box) {
+                const anchor = view.querySelector('.space-y-4');
+                if (!anchor) return;
+                box = document.createElement('div'); box.id = 'saved-ai-archive-list'; box.className = 'space-y-3';
+                anchor.prepend(box);
+            }
+            if (!list.length) { box.innerHTML = ''; return; }
+            box.innerHTML = `<div class="bg-white rounded-2xl border border-brand-sage/30 overflow-hidden shadow-sm"><div class="p-5 bg-brand-sageLight/40 border-b border-brand-ivoryDark"><h3 class="serif-title font-bold text-brand-navy">AI 모아 대화 아카이브</h3><p class="text-xs text-gray-500 mt-1">AI 독서파트너와 나눈 대화를 저장한 기록입니다.</p></div><div class="divide-y divide-brand-ivoryDark">${list.map(item=>`<div class="p-5"><div class="flex items-start justify-between gap-3"><div><span class="text-[10px] bg-brand-ivoryDark text-brand-navy px-2 py-0.5 rounded font-bold">${escapeHTML(item.createdAt || '저장됨')}</span><h4 class="font-bold text-brand-navy mt-1">${escapeHTML(item.title)}</h4><p class="text-xs text-gray-500 mt-1">${escapeHTML(item.book || '주제도서 미정')}</p></div><button onclick="openSavedAIArchive(${item.id})" class="px-3 py-2 rounded-xl bg-brand-navy text-white text-[11px] font-bold">보기</button></div><p class="text-xs text-gray-600 leading-relaxed mt-3 line-clamp-3">${escapeHTML(item.summary)}</p></div>`).join('')}</div></div>`;
+        }
+        function openSavedAIArchive(id) { const item=loadAIArchives().find(x=>x.id===id); if(!item)return; aiShareDraft={type:'full',title:item.title,text:item.full}; safeSetText('ai-share-modal-title', item.title); safeSetText('ai-share-modal-eyebrow','ARCHIVE RECORD'); const area=document.getElementById('ai-share-modal-content'); if(area) area.value = `요약
+${item.summary}
+
+전체 기록
+${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){modal.classList.remove('hidden');modal.classList.add('flex');} }
 
         function escapeAttr(value) { return String(value || '').replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
         function isGuestUser() { return !!(state.currentUser && state.currentUser.isGuest); }
