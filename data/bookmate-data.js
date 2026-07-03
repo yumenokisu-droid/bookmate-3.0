@@ -307,7 +307,7 @@
   ];
 
   window.BOOKMATE_DATA = {
-    version: "3.7-guest-account-data",
+    version: "3.8-base-data-plus-activity",
     defaultMode: "guest",
     guestMode,
     accounts,

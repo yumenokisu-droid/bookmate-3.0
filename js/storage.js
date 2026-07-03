@@ -1,52 +1,75 @@
-        // 사용자가 만든 모임/책/서평/선택한 표지를 브라우저에 저장
-        const BOOKMATE_STORAGE_KEY = 'bookmate_v1_2_state';
+        // v3.8 저장 원칙
+        // - data/bookmate-data.js: 기본 가계정/독서모임/아카이브/내서재/북라운지 데이터
+        // - localStorage: 로그인한 계정 또는 게스트가 이후에 추가·수정한 활동만 저장
+        const BOOKMATE_ACTIVITY_KEY = 'bookmate_v3_8_account_activity';
+        const BOOKMATE_LEGACY_STORAGE_KEY = 'bookmate_v1_2_state';
         const BOOKMATE_AVATAR_MIGRATION_KEY = 'bookmate_v1_9_avatar_moa1_migration_done';
+
+        function getActiveAccountId() {
+            try {
+                if (state && state.currentUser && state.currentUser.id) return state.currentUser.id;
+            } catch(e) {}
+            return 'guest';
+        }
+
+        function loadAllAccountActivities() {
+            try {
+                const raw = localStorage.getItem(BOOKMATE_ACTIVITY_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return (parsed && typeof parsed === 'object') ? parsed : {};
+            } catch(e) {
+                console.warn('BOOKMATE 활동 데이터 불러오기 실패:', e);
+                return {};
+            }
+        }
+
+        function loadAccountActivity(accountId) {
+            const all = loadAllAccountActivities();
+            return all[accountId || 'guest'] || null;
+        }
+
+        function saveAccountActivity(accountId, activity) {
+            try {
+                const all = loadAllAccountActivities();
+                all[accountId || 'guest'] = activity || {};
+                localStorage.setItem(BOOKMATE_ACTIVITY_KEY, JSON.stringify(all));
+            } catch(e) {
+                console.warn('BOOKMATE 활동 데이터 저장 실패:', e);
+            }
+        }
 
         function saveAppState() {
             try {
+                const accountId = getActiveAccountId();
                 const snapshot = {
-                    currentUser: state.currentUser,
                     recentBooks: state.recentBooks,
                     recentArchives: state.recentArchives,
                     gatherings: state.gatherings,
                     notifications: state.notifications,
                     socialPosts: state.socialPosts,
                     aiChatHistory: state.aiChatHistory,
-                    currentAIBook: state.currentAIBook
+                    currentAIBook: state.currentAIBook,
+                    loungeBookmates: (typeof loungeBookmates !== 'undefined') ? loungeBookmates : undefined,
+                    savedAt: new Date().toISOString()
                 };
-                localStorage.setItem(BOOKMATE_STORAGE_KEY, JSON.stringify(snapshot));
+                saveAccountActivity(accountId, snapshot);
             } catch (e) {
                 console.warn('BOOKMATE 저장 실패:', e);
             }
         }
 
         function loadAppState() {
-            try {
-                const raw = localStorage.getItem(BOOKMATE_STORAGE_KEY);
-                if (!raw) return;
-                const saved = JSON.parse(raw);
-                ['currentUser', 'recentBooks', 'recentArchives', 'gatherings', 'notifications', 'socialPosts', 'aiChatHistory', 'currentAIBook'].forEach(key => {
-                    if (saved[key] !== undefined) state[key] = saved[key];
-                });
-                // 기존 브라우저 저장값에서 '나'가 모아4 등으로 남아 있던 문제를 1회 보정합니다.
-                // 사용자가 직접 첨부한 사진은 유지하고, 모아 기본값만 모아1로 맞춥니다.
-                if (!localStorage.getItem(BOOKMATE_AVATAR_MIGRATION_KEY)) {
-                    if (state.currentUser && state.currentUser.avatarType !== 'upload') {
-                        state.currentUser.avatarType = 'moa';
-                        state.currentUser.avatarId = 1;
-                        state.currentUser.avatarImage = '';
-                    }
-                    localStorage.setItem(BOOKMATE_AVATAR_MIGRATION_KEY, '1');
-                    try { saveAppState(); } catch(e) {}
-                }
-            } catch (e) {
-                console.warn('BOOKMATE 저장 데이터 불러오기 실패:', e);
-            }
+            // v3.8부터 기본 데이터는 localStorage로 덮어쓰지 않습니다.
+            // 계정별 활동은 로그인/게스트 적용 시 loadAccountActivity()로 합쳐집니다.
+            try { localStorage.removeItem(BOOKMATE_LEGACY_STORAGE_KEY); } catch(e) {}
         }
 
         function clearAppState() {
-            localStorage.removeItem(BOOKMATE_STORAGE_KEY);
-            showToast('저장된 데모 데이터가 초기화되었습니다. 새로고침하면 기본 상태로 돌아갑니다.');
+            const accountId = getActiveAccountId();
+            const all = loadAllAccountActivities();
+            delete all[accountId];
+            localStorage.setItem(BOOKMATE_ACTIVITY_KEY, JSON.stringify(all));
+            showToast('이 계정의 추가 활동만 초기화했습니다. 기본 데이터는 유지됩니다.');
         }
 
         function rememberSelectedBook(targetId, book) {
