@@ -3367,7 +3367,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             try { localStorage.setItem(AUTH_SESSION_KEY, user.id); } catch(e) {}
             saveAppState();
             refreshAccountBoundViews();
-            renderDemoAccounts();
             hideAuthScreen();
             updateAuthHeader();
             updateGuestHomeVisibility();
@@ -3375,7 +3374,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
         }
 
         function initAuthSystem() {
-            renderDemoAccounts();
             // BOOKMATE 2.0: 첫 접속은 항상 게스트 상태로 시작합니다.
             // 이전 세션이 남아 있어도 자동 로그인하지 않고, 사용자가 직접 로그인해야 합니다.
             try { localStorage.removeItem(AUTH_SESSION_KEY); } catch(e) {}
@@ -3435,19 +3433,12 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
         }
 
         function renderDemoAccounts() {
-            const list = document.getElementById('demo-account-list');
-            if (!list) return;
-            const users = getAuthUsers();
-            list.innerHTML = users.map(u => `
-                <button type="button" onclick="fillDemoAccount('${u.id}', '${(u.password || '').replace(/'/g, "\'")}')" class="text-left rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 px-3 py-2 transition-colors">
-                    <b class="block text-white">${u.id}</b>
-                    <span class="block text-white/70 truncate">${u.nickname}</span>
-                    <span class="block text-white/40 text-[10px] truncate">${u.readingTypeIcon || ''} ${u.readingType || u.role || '신규 회원'}</span>
-                </button>
-            `).join('');
+            // 로그인 화면에는 가계정 목록을 노출하지 않습니다.
+            // 테스트용 아이디/비밀번호는 data/bookmate-data.js에서만 확인합니다.
         }
 
         function fillDemoAccount(id, password = '1234') {
+            // 화면에서 사용하지 않는 내부 보조 함수입니다.
             switchAuthMode('login');
             const idEl = document.getElementById('login-id');
             const pwEl = document.getElementById('login-password');
