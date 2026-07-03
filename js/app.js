@@ -3111,15 +3111,14 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
 
         function getManagedDataset() {
             try {
-                // v3.8: 기본 데이터는 항상 data/bookmate-data.js를 기준으로 읽습니다.
-                // localStorage는 사용자가 앱 안에서 추가로 만든 활동만 저장하고,
-                // 가계정/기본 독서모임/기본 아카이브를 덮어쓰지 않습니다.
+                // 기본 데이터는 항상 data/bookmate-data.js를 기준으로 읽습니다.
+                // localStorage의 관리자 데이터가 GitHub 수정본을 덮어쓰지 않도록 했습니다.
                 if (window.BOOKMATE_DATA && typeof window.BOOKMATE_DATA === 'object') {
                     return window.BOOKMATE_DATA;
                 }
                 return null;
             } catch (error) {
-                console.warn('[BOOKMATE DATA] 기본 데이터 로드 실패', error);
+                console.warn('[BOOKMATE DATA] 데모 데이터 로드 실패', error);
                 return null;
             }
         }
@@ -3208,21 +3207,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             return null;
         }
 
-
-        function mergeSavedAccountActivity(accountId) {
-            if (typeof loadAccountActivity !== 'function') return;
-            const activity = loadAccountActivity(accountId || 'guest');
-            if (!activity || typeof activity !== 'object') return;
-            if (Array.isArray(activity.recentBooks)) state.recentBooks = deepClone(activity.recentBooks, []);
-            if (Array.isArray(activity.recentArchives)) state.recentArchives = deepClone(activity.recentArchives, []);
-            if (Array.isArray(activity.gatherings)) state.gatherings = deepClone(activity.gatherings, []);
-            if (Array.isArray(activity.notifications)) state.notifications = deepClone(activity.notifications, []);
-            if (Array.isArray(activity.socialPosts)) state.socialPosts = deepClone(activity.socialPosts, []);
-            if (Array.isArray(activity.aiChatHistory)) state.aiChatHistory = deepClone(activity.aiChatHistory, []);
-            if (typeof activity.currentAIBook === 'string') state.currentAIBook = activity.currentAIBook;
-            if (typeof loungeBookmates !== 'undefined' && Array.isArray(activity.loungeBookmates)) loungeBookmates = deepClone(activity.loungeBookmates, []);
-        }
-
         function applyManagedDatasetToState() {
             const dataset = getManagedDataset();
             if (!dataset) return;
@@ -3276,7 +3260,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
                 state.currentAIMode = 'debate';
                 state.gatherings = applyGatheringMembership(BASE_ACCOUNT_DATA.gatherings || [], accountData);
                 if (typeof loungeBookmates !== 'undefined') loungeBookmates = deepClone(accountData.loungeBookmates, []);
-                mergeSavedAccountActivity('guest');
                 return;
             }
 
@@ -3292,7 +3275,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
                 state.currentAIMode = 'debate';
                 state.gatherings = getEmptyGatheringsForNewUser();
                 if (typeof loungeBookmates !== 'undefined') loungeBookmates = [];
-                mergeSavedAccountActivity(user.id);
                 return;
             }
 
@@ -3307,7 +3289,6 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             state.currentAIBook = data.currentAIBook || BASE_ACCOUNT_DATA.currentAIBook || '';
             state.currentAIMode = normalizeAIModeKey(data.currentAIMode || BASE_ACCOUNT_DATA.currentAIMode || 'debate');
             if (typeof loungeBookmates !== 'undefined') loungeBookmates = getAccountLoungeBookmates(data);
-            mergeSavedAccountActivity(user.id);
         }
 
         function refreshAccountBoundViews() {
@@ -3367,6 +3348,7 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
             try { localStorage.setItem(AUTH_SESSION_KEY, user.id); } catch(e) {}
             saveAppState();
             refreshAccountBoundViews();
+            renderDemoAccounts();
             hideAuthScreen();
             updateAuthHeader();
             updateGuestHomeVisibility();
@@ -3374,6 +3356,7 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
         }
 
         function initAuthSystem() {
+            renderDemoAccounts();
             // BOOKMATE 2.0: 첫 접속은 항상 게스트 상태로 시작합니다.
             // 이전 세션이 남아 있어도 자동 로그인하지 않고, 사용자가 직접 로그인해야 합니다.
             try { localStorage.removeItem(AUTH_SESSION_KEY); } catch(e) {}
@@ -3433,12 +3416,12 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
         }
 
         function renderDemoAccounts() {
-            // 로그인 화면에는 가계정 목록을 노출하지 않습니다.
-            // 테스트용 아이디/비밀번호는 data/bookmate-data.js에서만 확인합니다.
+            // 로그인 화면에서는 가계정 안내를 노출하지 않습니다.
+            const list = document.getElementById('demo-account-list');
+            if (list) list.innerHTML = '';
         }
 
         function fillDemoAccount(id, password = '1234') {
-            // 화면에서 사용하지 않는 내부 보조 함수입니다.
             switchAuthMode('login');
             const idEl = document.getElementById('login-id');
             const pwEl = document.getElementById('login-password');
@@ -3694,6 +3677,7 @@ ${item.full}`; const modal=document.getElementById('ai-share-modal'); if(modal){
 
         function sayHelloToReader(name) { showToast(`${name}님에게 인사를 건넸습니다! 🙋`); }
         window.onload = function() {
+            loadAppState();
             initAuthSystem();
             updateGuestHomeVisibility();
             lucide.createIcons();
