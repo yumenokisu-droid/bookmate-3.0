@@ -757,30 +757,28 @@
                         </div>
                     </div>
 
-                    <div class="bg-white p-5 rounded-3xl border border-brand-ivoryDark shadow-sm" id="ai-insight-card">
+                    <div class="bg-white p-5 rounded-3xl border border-brand-ivoryDark shadow-sm">
                         <div class="flex items-center gap-2 mb-4">
                             <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><i data-lucide="brain" class="w-4 h-4"></i></div>
-                            <h3 class="serif-title font-bold text-brand-navy">AI 독서 인사이트</h3>
+                            <h3 class="serif-title font-bold text-brand-navy">독서 성향 분석</h3>
                         </div>
-                        <p class="text-xs text-gray-500 leading-relaxed">대화가 조금 더 쌓이면 관심 주제, 질문 습관, 해석 방식, 추천 방향을 세부적으로 정리해드려요.</p>
-                        <div class="mt-4 space-y-3 text-xs">
-                            <div>
-                                <div class="flex justify-between text-[10px] font-bold text-gray-400 mb-1"><span>분석 신뢰도</span><span id="ai-insight-confidence">0%</span></div>
-                                <div class="h-2 rounded-full bg-brand-ivoryDark overflow-hidden"><div id="ai-insight-bar" class="h-full bg-brand-sage rounded-full" style="width:0%"></div></div>
-                            </div>
-                            <div id="ai-insight-detail" class="p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark text-gray-600 leading-relaxed">
-                                아직은 대화가 부족해요. 책에 대한 생각을 3~4번 정도 더 나누면 모아가 독서 흐름을 읽어볼게요.
-                            </div>
+                        <p class="text-xs text-gray-500 leading-relaxed">대화가 쌓이면 AI 모아가 관심 주제와 대화 스타일을 정리해드려요.</p>
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            <span class="px-2.5 py-1 rounded-full bg-brand-sageLight text-brand-sageDark text-[10px] font-bold">감성형</span>
+                            <span class="px-2.5 py-1 rounded-full bg-brand-ivory text-brand-navy text-[10px] font-bold">토론형</span>
+                            <span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold">기록형</span>
                         </div>
                     </div>
 
-                    <div class="bg-white p-5 rounded-3xl border border-brand-ivoryDark shadow-sm" id="ai-book-recommendation-card">
+                    <div class="bg-white p-5 rounded-3xl border border-brand-ivoryDark shadow-sm">
                         <div class="flex items-center gap-2 mb-4">
                             <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><i data-lucide="book-open" class="w-4 h-4"></i></div>
-                            <h3 class="serif-title font-bold text-brand-navy">대화 기반 추천도서</h3>
+                            <h3 class="serif-title font-bold text-brand-navy">추천 도서</h3>
                         </div>
-                        <div id="ai-book-recommendation-list" class="text-xs text-gray-500 leading-relaxed p-3 rounded-2xl bg-brand-ivory/60 border border-dashed border-brand-ivoryDark">
-                            추천도서는 충분한 대화 이후에 표시됩니다. 지금은 먼저 책에 대한 감상과 질문을 나눠보세요.
+                        <div class="space-y-2 text-xs text-gray-600">
+                            <button onclick="sendAIChip('어린 왕자와 비슷한 책을 추천해줘')" class="w-full text-left p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark hover:border-brand-sage transition-all">『연금술사』</button>
+                            <button onclick="sendAIChip('관계와 책임을 다룬 책을 추천해줘')" class="w-full text-left p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark hover:border-brand-sage transition-all">『모모』</button>
+                            <button onclick="sendAIChip('독서모임에서 다루기 좋은 고전을 추천해줘')" class="w-full text-left p-3 rounded-2xl bg-brand-ivory/60 border border-brand-ivoryDark hover:border-brand-sage transition-all">『데미안』</button>
                         </div>
                     </div>
                 </aside>
@@ -1700,7 +1698,7 @@
             </div>
             <div class="p-6 space-y-4">
                 <p class="text-xs text-gray-500 leading-relaxed">
-                    모드를 고르지 않아도 괜찮아요. AI 독서파트너 모아가 사용자의 질문과 대화 흐름을 보고 설명, 토론, 정리, 추천을 자연스럽게 이어갑니다.
+                    모아는 모드를 고르지 않아도 질문의 성격에 맞춰 설명, 토론, 생각 정리, 독서모임 준비, 책 추천을 자연스럽게 도와줍니다. 책은 지금 정하지 않아도 괜찮고, 대화 중에 함께 정할 수 있습니다.
                 </p>
                 <div class="space-y-2">
                     <div class="flex items-center justify-between">

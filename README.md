@@ -1,20 +1,3 @@
-# BOOKMATE 3.2
-
-AI 독서파트너 모아 개편 버전입니다.
-
-## 주요 변경
-- AI 모드 선택 UI 제거
-- AI 모아 프로필을 기본 프로필로 통일
-- Gemini 시스템 프롬프트를 독서파트너형 대화 프롬프트로 개선
-- 오른쪽 패널을 `AI 독서 인사이트`와 `대화 기반 추천도서`로 개편
-- 추천도서는 충분한 대화 이후 표시되도록 변경
-
-## 배포
-Netlify 루트 배포 기준입니다.
-- `index.html`
-- `style.css`
-- `js/app.js`
-- `netlify/functions/chat.js`
 # BOOKMATE
 
 독서공동체 플랫폼 BOOKMATE의 Netlify + Gemini 배포용 정리본입니다.
